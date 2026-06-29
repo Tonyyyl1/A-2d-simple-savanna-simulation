@@ -1,6 +1,6 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.1**
+Version: **1.2**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
