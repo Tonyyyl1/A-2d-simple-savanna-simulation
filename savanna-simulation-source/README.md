@@ -98,6 +98,40 @@ Print regular population snapshots:
 java StabilityProbe 5000 500
 ```
 
+### Run the test suite
+
+The project includes a no-dependency test suite, so it can be run without JUnit,
+Maven, or Gradle.
+
+```bash
+javac *.java
+java AllTests
+```
+
+`java AllTests` runs unit tests, system tests, and a `1000` step headless
+stability test.
+
+For a fuller daily check:
+
+```bash
+java AllTests full
+```
+
+`java AllTests full` also runs a `5000` step headless stability test. The
+`200000` step validation remains available through `java SimulationRunner
+200000`.
+
+Recommended tuning workflow:
+
+1. Run `java AllTests`.
+2. If it passes, run `java AllTests full`.
+3. After major parameter changes, run `java SimulationRunner 200000`.
+
+This layered workflow is intended to reduce full tuning time to 80% or less of
+the previous approach by catching local errors before a long 200000-step run.
+The latest timing evidence and reduction calculation are documented in
+`TUNING_EFFICIENCY.md`.
+
 ## Visual Controls
 
 The main simulation window includes:
@@ -148,6 +182,9 @@ Species parameters are centralised in `SpeciesRegistry` and `SpeciesProfile`, wh
 
 - `VisualSimulationRunner.java`: starts the GUI simulation.
 - `SimulationRunner.java`: runs long headless stability tests.
+- `AllTests.java`: runs the no-dependency test suite.
+- `TUNING_EFFICIENCY.md`: documents the layered tuning workflow and timing
+  evidence.
 - `Simulator.java`: main simulation loop.
 - `SimulatorView.java`: visual grid window.
 - `SimulationChartWindow.java`: live chart display.
@@ -158,4 +195,3 @@ Species parameters are centralised in `SpeciesRegistry` and `SpeciesProfile`, wh
 ## Notes
 
 This is an educational simulation rather than a scientifically calibrated ecological model. The values are tuned to create a stable, explainable predator-prey ecosystem that can run for long periods without forced species revival.
-

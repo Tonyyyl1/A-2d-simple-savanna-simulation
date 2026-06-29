@@ -41,6 +41,23 @@ Headless test runners:
     java StabilityProbe 5000 500
         Runs without the GUI and prints population snapshots every 500 steps.
 
+No-dependency tests:
+    javac *.java
+    java AllTests
+        Runs unit tests, system tests, and a 1000-step headless stability test.
+
+    java AllTests full
+        Runs the default tests plus a 5000-step headless stability test.
+
+    Recommended tuning workflow:
+        1. Run java AllTests.
+        2. If it passes, run java AllTests full.
+        3. After major parameter changes, run java SimulationRunner 200000.
+
+    This layered workflow is intended to reduce full tuning time to 80% or less
+    of the previous approach by catching local errors before a long 200000-step
+    run. See TUNING_EFFICIENCY.md for the latest timing evidence.
+
 Implemented systems:
     Weather:
         Clear, rain, fog, and drought change over time. Rain increases disease
