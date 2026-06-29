@@ -16,6 +16,8 @@ public class SimulationSystemTests
         testDiseasePredationTransmission();
         testStaminaAffectsPredationContest();
         testBreedingRequiresMate();
+        testTerrainMapGeneration();
+        testTerminalDiagnostics();
         TestSupport.finishGroup();
     }
 
@@ -124,6 +126,71 @@ public class SimulationSystemTests
                           mateNext.getFreeAdjacentLocations(female.getLocation()));
         TestSupport.assertTrue("female with adult male nearby can breed",
                                mateNext.getLivingPopulation() > 0);
+    }
+
+    private static void testTerrainMapGeneration()
+    {
+        TerrainMap first = new TerrainMap(80, 120, 12345L);
+        TerrainMap second = new TerrainMap(80, 120, 12345L);
+
+        TestSupport.assertEquals("terrain depth matches field depth",
+                                 80, first.getDepth());
+        TestSupport.assertEquals("terrain width matches field width",
+                                 120, first.getWidth());
+        TestSupport.assertEquals("same seed gives same terrain counts",
+                                 first.countTerrainTypes(), second.countTerrainTypes());
+        TestSupport.assertEquals("same seed gives same sampled terrain",
+                                 first.getTerrainAt(new Location(34, 38)),
+                                 second.getTerrainAt(new Location(34, 38)));
+
+        Map<TerrainType, Integer> counts = first.countTerrainTypes();
+        for(TerrainType type : TerrainType.values()) {
+            TestSupport.assertTrue(type.getDisplayName() + " terrain exists",
+                                   counts.get(type) > 0);
+        }
+
+        TestSupport.assertTrue("terrain lookup clamps outside locations",
+                               first.getTerrainAt(new Location(-20, 999)) != null);
+        TestSupport.assertTrue("null terrain lookup returns a default",
+                               first.getTerrainAt(null) != null);
+
+        SimulationContext context = new SimulationContext(17, 23);
+        TestSupport.assertEquals("context terrain depth matches simulation",
+                                 17, context.getTerrainMap().getDepth());
+        TestSupport.assertEquals("context terrain width matches simulation",
+                                 23, context.getTerrainMap().getWidth());
+    }
+
+    private static void testTerminalDiagnostics()
+    {
+        Field field = new Field(5, 5);
+        Gazelle gazelle = new Gazelle(false, new Location(1, 1));
+        Lion lion = new Lion(false, new Location(2, 2));
+        field.placeAnimal(gazelle, gazelle.getLocation());
+        field.placeAnimal(lion, lion.getLocation());
+        SimulationContext context = new SimulationContext(5, 5);
+        context.startStep(0, field);
+
+        SimulationDiagnostics.DiagnosticSnapshot first =
+            SimulationDiagnostics.capture(field, context);
+        String firstLine = SimulationDiagnostics.toConsoleLine(0, first, null);
+        TestSupport.assertTrue("terminal diagnostics include trend",
+                               firstLine.contains("Trend: baseline"));
+        TestSupport.assertTrue("terminal diagnostics include signals",
+                               firstLine.contains("Signals:"));
+        TestSupport.assertTrue("terminal diagnostics include event",
+                               firstLine.contains("Event:"));
+
+        Buffalo buffalo = new Buffalo(false, new Location(3, 3));
+        field.placeAnimal(buffalo, buffalo.getLocation());
+        context.startStep(100, field);
+        SimulationDiagnostics.DiagnosticSnapshot second =
+            SimulationDiagnostics.capture(field, context);
+        String secondLine = SimulationDiagnostics.toConsoleLine(100, second, first);
+        TestSupport.assertTrue("terminal diagnostics show population trend",
+                               secondLine.contains("pop +1"));
+        TestSupport.assertTrue("terminal diagnostics keep event readout",
+                               secondLine.contains("Event:"));
     }
 
     private static TestAnimal createTestAnimal(Sex sex, Location location)

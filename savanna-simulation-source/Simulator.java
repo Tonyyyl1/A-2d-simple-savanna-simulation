@@ -260,6 +260,14 @@ public class Simulator
     }
 
     /**
+     * @return The current shared simulation context.
+     */
+    public SimulationContext getContext()
+    {
+        return context;
+    }
+
+    /**
      * Turn step-by-step console output on or off.
      */
     public void setVerbose(boolean verbose)
@@ -289,8 +297,7 @@ public class Simulator
      */
     public String getSummary()
     {
-        return "Step " + step + " | " + field.countLivingBySpecies() +
-               " | " + context.getEnvironmentSummary(field);
+        return SimulationDiagnostics.toFinalSummary(field, context);
     }
 
     /**

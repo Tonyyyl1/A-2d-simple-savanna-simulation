@@ -10,6 +10,12 @@ test suite.
 
 ## Version Highlights
 
+- **Unreleased / Phase 1**: added an independent 2.5D savanna terrain
+  background layer and clearer simulation feedback. The map has a deterministic
+  waterhole, grassland belt, bush bands, open plain, dry soil, and a seasonal
+  lowland corridor. The GUI now separates terrain, animal symbols, weather/time
+  overlays, and system metrics. The terminal runner prints readable ecosystem
+  snapshots during the run.
 - **1.0**: completed the stamina, survival, visual simulation, reporting, and
   long-run stability work.
 - **1.1**: added the no-dependency test system, `1000` and `5000` step stability
@@ -42,6 +48,15 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 - Visual simulation with pause/resume and stop-and-exit controls.
 - Live chart window for population, disease, stamina, survival, and grass.
 - HTML report generation with interval records every `100` steps.
+- Deterministic smooth terrain background, drawn separately from the animal
+  layer.
+- 2.5D visual feedback with terrain shadows, low-interference terrain labels,
+  representative animal symbols, weather/time tinting, and live metric bars for
+  grass, disease, survival, and stamina.
+- Terminal diagnostics every `100` headless steps so command-line runs show
+  population, weather, grass, disease, stamina, survival, starvation, and
+  warning signals, plus trend changes and short event readouts since the
+  previous diagnostic line.
 - No-dependency test suite with unit, system, and integration checks.
 - Headless long-run stability validation.
 
@@ -52,6 +67,48 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 The visual display refreshes every `100` steps for performance. The ecological
 model still calculates every single step.
+
+## Visual And Terminal Feedback
+
+Phase 1 adds a visual terrain layer without changing animal behaviour.
+`SimulationContext` owns a `TerrainMap`, and `SimulatorView` renders that map as
+a cached background image before drawing animals on a transparent animal layer.
+
+The terrain map uses fixed-seed coordinate rules, not random pixel noise. It
+contains:
+
+- a rounded waterhole near the left-center of the map,
+- a continuous grassland belt around the waterhole,
+- bush belts near the waterhole, map edges, and lowland corridor,
+- broad open plains through the center and upper-right areas,
+- dry soil in the lower and lower-right areas,
+- a gently curved seasonal lowland corridor crossing the map.
+
+The renderer uses a 2.5D style: large regions have gradient lighting, shadow
+offsets, highlighted borders, terrain-specific texture marks, and subtle
+terrain labels. The animal layer draws representative individual symbols: all
+predators, infected animals, critical-survival animals, and low-stamina animals
+remain visible, while dense ordinary herbivore groups are sampled. Predators
+use triangular markers, herbivores use circular markers, infected animals keep
+red disease dots, critical-survival animals get an orange ring, and low-stamina
+animals get a small stamina bar. Population aggregation is still used only for
+sampling dense ordinary animals; it no longer paints large pressure blocks on
+the map.
+
+The visual layer also applies weather and time-of-day tinting. A compact
+on-map metric panel shows grass, disease, survival, stamina, active signals,
+and short trend changes so the current state is visible without reading the
+full report. The GUI uses the same `SimulationDiagnostics` snapshot as the
+terminal runner, keeping the two readouts consistent.
+
+For headless runs, `SimulationRunner` prints a compact diagnostic line at the
+start, every `100` steps, and at the final step. Each line includes population,
+predator/prey pressure, grass, disease, average stamina, average survival,
+low-survival count, low-stamina count, starving count, trend changes since the
+previous line, a short event readout, and high-level signals.
+
+For now, grass growth, movement, disease, predation, and breeding do not read
+terrain modifiers. That is reserved for a later phase.
 
 ## Quick Start
 
@@ -115,7 +172,7 @@ This runs:
 Latest recorded result:
 
 ```text
-Passed 47/47 tests in 5683 ms
+Passed 65/65 tests in 5744 ms
 ```
 
 Run the full daily test suite:
@@ -236,4 +293,3 @@ This is an educational simulation rather than a scientifically calibrated
 ecological model. The values are tuned to create a stable, explainable
 predator-prey ecosystem that can run for long periods without forced species
 revival.
-

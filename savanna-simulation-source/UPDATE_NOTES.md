@@ -2,6 +2,14 @@
 
 ## Summary
 
+This working update adds Phase 1 of the terrain and feedback layer: an
+independent 2.5D African savanna background, subtle terrain labels, clearer
+animal symbols, visual weather/time overlays, live on-map metrics with signals
+and short trends, and readable terminal diagnostics with trends and events.
+The terrain is generated from deterministic coordinate rules and rendered
+separately from the animals, so the ecological model remains unchanged for this
+phase.
+
 This update adds a no-dependency testing module for the African Savanna
 Predator-Prey Simulation. The new tests are designed for a BlueJ/plain Java
 project and do not require JUnit, Maven, or Gradle.
@@ -12,6 +20,36 @@ parameter-tuning time by catching local errors before running the expensive
 
 ## Added
 
+- `TerrainMap.java`
+  - Fixed-seed terrain generator and 2.5D background renderer.
+  - Draws large terrain regions with lighting, shadows, highlighted borders,
+    dry-soil cracks, bush clumps, lowland depth, and water highlights.
+  - Provides `getTerrainAt(Location)` for future ecological integration.
+- `TerrainType.java`
+  - Defines waterhole, grassland, bush, open plain, and dry soil terrain
+    categories.
+- Two-layer field rendering
+  - `SimulatorView.FieldView` caches the terrain image separately from the
+    transparent animal image.
+  - Empty cells no longer cover the terrain background.
+- Visual status feedback
+  - Predators use triangular markers and herbivores use circular markers.
+  - Infected animals, critical-survival animals, and low-stamina animals have
+    distinct visual indicators.
+  - Dense ordinary herbivore groups are sampled for readability without drawing
+    large population-pressure blocks.
+  - Weather, dawn/day/dusk/night, grass, disease, survival, stamina, signals,
+    and short trends are visible in the main simulation window.
+  - The GUI metric panel uses the same `SimulationDiagnostics` snapshot as the
+    terminal runner.
+- `SimulationDiagnostics.java`
+  - Builds compact command-line summaries for headless runs.
+  - Shows population, grass, disease, and survival trend changes since the
+    previous diagnostic line.
+  - Adds short event readouts such as population recovery, fog visibility, and
+    changing disease or survival pressure.
+  - `SimulationRunner` prints these summaries at the start, every `100` steps,
+    and at the final step.
 - `AllTests.java`
   - Main test entry point.
   - Run with `java AllTests` or `java AllTests full`.
@@ -46,7 +84,7 @@ java AllTests
 Latest result:
 
 ```text
-Passed 47/47 tests in 5683 ms
+Passed 65/65 tests in 5744 ms
 ```
 
 Run the full daily test suite:
@@ -112,4 +150,3 @@ of the previous repeated-200k workflow.
 - `savanna-simulation-project.zip`
 
 All deliverables include the new test module and tuning evidence document.
-

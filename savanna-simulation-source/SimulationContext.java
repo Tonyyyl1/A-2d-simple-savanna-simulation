@@ -11,6 +11,7 @@ public class SimulationContext
     private final PredationSystem predationSystem;
     private final BreedingSystem breedingSystem;
     private final FoodSystem foodSystem;
+    private final TerrainMap terrainMap;
     private Map<String, Integer> populationSnapshot;
     private int step;
 
@@ -22,6 +23,7 @@ public class SimulationContext
         predationSystem = new FoodChainPredationSystem();
         breedingSystem = new MateFindingBreedingSystem();
         foodSystem = new GrasslandFoodSystem(depth, width);
+        terrainMap = new TerrainMap(depth, width);
     }
 
     public void startStep(int step, Field field)
@@ -66,6 +68,11 @@ public class SimulationContext
     public FoodSystem getFoodSystem()
     {
         return foodSystem;
+    }
+
+    public TerrainMap getTerrainMap()
+    {
+        return terrainMap;
     }
 
     public int getPopulation(String speciesName)

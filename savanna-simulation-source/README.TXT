@@ -33,7 +33,11 @@ Headless test runners:
     java SimulationRunner
         Runs 200000 steps without the GUI. It exits with an error if any
         species becomes extinct or if the final population balance ratio is
-        above 12.0.
+        above 12.0. It prints a readable ecosystem summary at the start, every
+        100 steps, and at the final step, including weather, time, population,
+        predator/prey pressure, grass, disease, average stamina, average
+        survival, starvation pressure, trend changes, event readouts, and
+        high-level signals.
 
     java SimulationRunner 5000
         Runs a shorter headless stability check.
@@ -89,10 +93,29 @@ Implemented systems:
         Breeding responds to grass, weather, crowding, and prey availability.
 
 Graphics:
-    Species use distinct colours. Red dots mark disease. The top panel shows
-    weather, time of day, grass level, and disease count. Sex and life-stage
-    details are recorded in the report rather than drawn on the main grid, so
-    the simulation window stays readable.
+    Species use distinct colours. The simulation now draws a deterministic
+    2.5D terrain background before drawing animals on a separate transparent
+    animal layer. The terrain layer includes a left-center waterhole,
+    surrounding grassland, bush belts, open plains, dry soil, and a seasonal
+    lowland corridor. Large regions use shadows, highlighted borders,
+    terrain-specific texture, and subtle labels so the map reads as distinct
+    ecological zones.
+
+    Animals are no longer full-cell blocks. Predators are triangular markers
+    and herbivores are circular markers. Red dots mark disease, orange rings
+    mark critical survival pressure, and small bars mark low stamina. Ordinary
+    dense herbivore groups are sampled so the field stays readable, but the map
+    no longer paints large population-pressure blocks.
+
+    Weather and time of day now tint the main field, and a compact on-map panel
+    shows grass, disease, average survival, average stamina, active signals,
+    and short trend changes. The panel uses the same SimulationDiagnostics
+    snapshot as the terminal runner. Phase 1 keeps this terrain visual only;
+    grass, movement, disease, predation, and breeding do not read terrain
+    modifiers yet.
+    The top panel shows weather, time of day, grass level, and disease count.
+    Sex and life-stage details are recorded in the report rather than drawn on
+    the main grid, so the simulation window stays readable.
     A separate chart window shows population, disease, average stamina,
     average survival, and grass trends.
 

@@ -16,6 +16,12 @@ public class SimulationRunner
         long startTime = System.currentTimeMillis();
         Simulator simulator = new Simulator(false);
         simulator.setVerbose(false);
+        SimulationDiagnostics.DiagnosticSnapshot previousSnapshot = null;
+        SimulationDiagnostics.DiagnosticSnapshot currentSnapshot =
+            SimulationDiagnostics.capture(simulator.getField(), simulator.getContext());
+        System.out.println(SimulationDiagnostics.toConsoleLine(
+            simulator.getStep(), currentSnapshot, previousSnapshot));
+        previousSnapshot = currentSnapshot;
         java.util.Map<String, Integer> minimumCounts =
             new java.util.LinkedHashMap<>(simulator.getField().countLivingBySpecies());
         boolean viable = simulator.getField().isViable();
@@ -30,12 +36,17 @@ public class SimulationRunner
                     minimumCounts.put(name, Math.min(previousMinimum, count));
                 }
                 viable = simulator.getField().isViable();
+                currentSnapshot = SimulationDiagnostics.capture(simulator.getField(),
+                                                                simulator.getContext());
+                System.out.println(SimulationDiagnostics.toConsoleLine(
+                    simulator.getStep(), currentSnapshot, previousSnapshot));
+                previousSnapshot = currentSnapshot;
             }
         }
         long elapsedMillis = System.currentTimeMillis() - startTime;
         java.util.Map<String, Integer> finalCounts = simulator.getField().countLivingBySpecies();
         double finalBalanceRatio = finalBalanceRatio(finalCounts);
-        System.out.println(simulator.getSummary());
+        System.out.println("Final: " + simulator.getSummary());
         System.out.println("Minimum populations: " + minimumCounts);
         System.out.println("Extinction: " + (!simulator.getField().isViable()));
         System.out.println("Final balance ratio: " + String.format("%.2f", finalBalanceRatio));

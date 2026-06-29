@@ -3,6 +3,56 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
+## [Unreleased] - Phase 1 Terrain And Feedback Layer
+
+### Added
+
+- Added a deterministic `TerrainMap` with a fixed seed and query support via
+  `getTerrainAt(Location)`.
+- Added `TerrainType` categories for waterholes, grassland, bush, open plains,
+  and dry soil.
+- Added a smooth terrain background renderer with a left-center waterhole,
+  surrounding grassland, bush belts, open plains, dry soil, and a seasonal
+  lowland corridor.
+- Added 2.5D terrain styling with gradient lighting, region shadows, highlighted
+  edges, dry-soil cracks, bush clumps, lowland depth, and water highlights.
+- Added clearer animal symbols: predators are triangles, herbivores are circles,
+  infected animals keep red disease dots, critical-survival animals show orange
+  rings, and low-stamina animals show small stamina bars.
+- Added representative animal sampling so dense ordinary herbivore groups stay
+  readable while predators, infected animals, critical-survival animals, and
+  low-stamina animals remain visible.
+- Added low-interference terrain labels for the main background zones.
+- Added weather and time-of-day tint overlays plus a compact on-map metric panel
+  for grass, disease, survival, stamina, active signals, and short trends.
+- Added `SimulationDiagnostics` for readable terminal snapshots during
+  headless simulation runs, including trend changes since the previous
+  diagnostic line, high-level signals, and short event readouts.
+- Added system tests for deterministic map generation, map dimensions, terrain
+  category coverage, and safe terrain lookup.
+- Added `TerrainMap`, `TerrainType`, `TerrainTileSet`, and
+  `SimulationDiagnostics` to the BlueJ package diagram.
+
+### Changed
+
+- `SimulationContext` now owns the terrain map, but ecological behaviour does
+  not read terrain yet.
+- `SimulatorView.FieldView` now draws two layers: a cached terrain background
+  and a separate transparent animal layer.
+- Empty field cells no longer cover the terrain background.
+- Large population-pressure blocks are no longer drawn on the map; aggregation
+  is retained only for ordinary-animal sampling.
+- `SimulationRunner` now prints ecosystem diagnostics at the start, every
+  `100` steps, and at the final step.
+- `Simulator.getSummary()` now uses the same diagnostic format as the terminal
+  runner.
+
+### Test Coverage
+
+- `javac *.java`
+- `java AllTests`
+  - Latest recorded result: `65/65` tests passed in `5744 ms`.
+
 ## [1.1] - Testing and Tuning Workflow
 
 ### Added
@@ -122,4 +172,3 @@ documented here.
 - Tuned the ecosystem to complete `200000` steps without extinction.
 - Recorded a validated 200000-step result in
   `200k-stamina-balance-test-summary.txt`.
-

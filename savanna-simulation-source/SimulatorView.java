@@ -1,12 +1,19 @@
 import java.awt.BorderLayout;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
-import java.awt.Image;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.RenderingHints;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.swing.JButton;
@@ -20,7 +27,6 @@ import javax.swing.JPanel;
  */
 public class SimulatorView extends JFrame
 {
-    private static final Color EMPTY_COLOR = new Color(239, 245, 230);
     private static final Color UNKNOWN_COLOR = Color.gray;
     private static final Color INFECTED_COLOR = new Color(210, 35, 42);
     private static final String STEP_PREFIX = "Step: ";
@@ -35,6 +41,7 @@ public class SimulatorView extends JFrame
     private final Map<String, Color> colors;
     private final FieldStats stats;
     private SimulationControlHandler controlHandler;
+    private SimulationDiagnostics.DiagnosticSnapshot previousSnapshot;
 
     public SimulatorView(int height, int width)
     {
@@ -139,7 +146,9 @@ public class SimulatorView extends JFrame
         }
 
         stats.reset();
-        fieldView.preparePaint();
+        TerrainMap terrainMap = context == null ? null : context.getTerrainMap();
+        fieldView.preparePaint(terrainMap);
+        fieldView.drawPopulationPressure(field);
 
         for(int row = 0; row < field.getDepth(); row++) {
             for(int col = 0; col < field.getWidth(); col++) {
@@ -148,20 +157,26 @@ public class SimulatorView extends JFrame
                     stats.incrementCount(animal);
                     if(animal instanceof SavannahAnimal) {
                         SavannahAnimal savannahAnimal = (SavannahAnimal)animal;
-                        fieldView.drawAnimal(col, row,
-                            getColor(savannahAnimal.getProfile().getName()),
-                            savannahAnimal.isInfected());
+                        if(fieldView.shouldDrawAnimal(col, row, savannahAnimal)) {
+                            fieldView.drawAnimal(col, row, savannahAnimal);
+                        }
                     }
                     else {
                         fieldView.drawMark(col, row, UNKNOWN_COLOR);
                     }
                 }
-                else {
-                    fieldView.drawMark(col, row, EMPTY_COLOR);
-                }
             }
         }
         stats.countFinished();
+        if(context != null) {
+            SimulationDiagnostics.DiagnosticSnapshot currentSnapshot =
+                SimulationDiagnostics.capture(field, context);
+            SimulationDiagnostics.DiagnosticSnapshot comparisonSnapshot =
+                step == 0 ? null : previousSnapshot;
+            fieldView.drawSystemOverlay(context, currentSnapshot,
+                                        comparisonSnapshot);
+            previousSnapshot = currentSnapshot;
+        }
 
         population.setText(POPULATION_PREFIX + stats.getPopulationDetails(field));
         fieldView.repaint();
@@ -209,6 +224,10 @@ public class SimulatorView extends JFrame
         panel.add(new JLabel("Weather", new SwatchIcon(WeatherType.RAIN.getColor()),
                              JLabel.LEFT));
         panel.add(new JLabel("Disease", new DiseaseIcon(), JLabel.LEFT));
+        panel.add(new JLabel("Predator", new PredatorIcon(), JLabel.LEFT));
+        panel.add(new JLabel("Herbivore", new HerbivoreIcon(), JLabel.LEFT));
+        panel.add(new JLabel("Survival pressure", new SurvivalIcon(), JLabel.LEFT));
+        panel.add(new JLabel("Low stamina", new StaminaIcon(), JLabel.LEFT));
         return panel;
     }
 
@@ -217,15 +236,21 @@ public class SimulatorView extends JFrame
      */
     private class FieldView extends JPanel
     {
-        private static final int GRID_VIEW_SCALING_FACTOR = 8;
+        private static final int GRID_VIEW_SCALING_FACTOR = 10;
+        private static final int AGGREGATE_CELL_SIZE = 8;
 
         private final int gridWidth;
         private final int gridHeight;
         private int xScale;
         private int yScale;
         private Dimension size;
-        private Graphics graphics;
-        private Image fieldImage;
+        private TerrainMap terrainMap;
+        private BufferedImage terrainImage;
+        private BufferedImage animalImage;
+        private Graphics2D animalGraphics;
+        private int aggregateColumns;
+        private int aggregateRows;
+        private int[][] aggregatePopulation;
 
         public FieldView(int height, int width)
         {
@@ -240,61 +265,294 @@ public class SimulatorView extends JFrame
                                  gridHeight * GRID_VIEW_SCALING_FACTOR);
         }
 
-        public void preparePaint()
+        public void preparePaint(TerrainMap currentTerrainMap)
         {
-            if(!size.equals(getSize())) {
-                size = getSize();
-                fieldImage = fieldView.createImage(size.width, size.height);
-                graphics = fieldImage.getGraphics();
+            Dimension currentSize = getSize();
+            if(currentSize.width <= 0 || currentSize.height <= 0) {
+                currentSize = getPreferredSize();
+            }
 
-                xScale = size.width / gridWidth;
-                if(xScale < 1) {
-                    xScale = GRID_VIEW_SCALING_FACTOR;
+            boolean sizeChanged = !size.equals(currentSize);
+            boolean terrainChanged = terrainMap != currentTerrainMap;
+
+            if(sizeChanged) {
+                size = new Dimension(currentSize);
+                xScale = Math.max(1, size.width / gridWidth);
+                yScale = Math.max(1, size.height / gridHeight);
+                animalImage = new BufferedImage(size.width, size.height,
+                                                BufferedImage.TYPE_INT_ARGB);
+                if(animalGraphics != null) {
+                    animalGraphics.dispose();
                 }
-                yScale = size.height / gridHeight;
-                if(yScale < 1) {
-                    yScale = GRID_VIEW_SCALING_FACTOR;
+                animalGraphics = animalImage.createGraphics();
+                animalGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                                RenderingHints.VALUE_ANTIALIAS_ON);
+            }
+
+            if(sizeChanged || terrainChanged || terrainImage == null) {
+                terrainMap = currentTerrainMap;
+                terrainImage = new BufferedImage(size.width, size.height,
+                                                 BufferedImage.TYPE_INT_ARGB);
+                Graphics2D terrainGraphics = terrainImage.createGraphics();
+                if(terrainMap != null) {
+                    terrainMap.drawBackground(terrainGraphics, size.width, size.height);
+                }
+                else {
+                    terrainGraphics.setColor(TerrainType.OPEN_PLAIN.getColor());
+                    terrainGraphics.fillRect(0, 0, size.width, size.height);
+                }
+                terrainGraphics.dispose();
+            }
+
+            clearAnimalLayer();
+        }
+
+        public void drawPopulationPressure(Field field)
+        {
+            aggregateColumns = (gridWidth + AGGREGATE_CELL_SIZE - 1) /
+                               AGGREGATE_CELL_SIZE;
+            aggregateRows = (gridHeight + AGGREGATE_CELL_SIZE - 1) /
+                            AGGREGATE_CELL_SIZE;
+            aggregatePopulation = new int[aggregateRows][aggregateColumns];
+
+            for(Animal animal : field.getAnimals()) {
+                if(animal instanceof SavannahAnimal && animal.isAlive()) {
+                    SavannahAnimal savannahAnimal = (SavannahAnimal)animal;
+                    Location location = savannahAnimal.getLocation();
+                    int aggregateRow = aggregateRow(location.row());
+                    int aggregateColumn = aggregateColumn(location.col());
+                    aggregatePopulation[aggregateRow][aggregateColumn]++;
                 }
             }
+        }
+
+        public boolean shouldDrawAnimal(int x, int y, SavannahAnimal animal)
+        {
+            int population = aggregatePopulation == null ? 0 :
+                aggregatePopulation[aggregateRow(y)][aggregateColumn(x)];
+            if(population <= 5 || animal.getProfile().isPredator() ||
+               animal.isInfected() || animal.isSurvivalCritical() ||
+               animal.getStaminaStage() == StaminaStage.LOW) {
+                return true;
+            }
+            int spacing = Math.min(7, Math.max(2, population / 4));
+            return Math.abs(x * 31 + y * 17) % spacing == 0;
         }
 
         public void drawMark(int x, int y, Color color)
         {
-            graphics.setColor(color);
-            graphics.fillRect(x * xScale, y * yScale, xScale - 1, yScale - 1);
+            animalGraphics.setColor(color);
+            animalGraphics.fillRect(x * xScale, y * yScale,
+                                    Math.max(1, xScale - 1),
+                                    Math.max(1, yScale - 1));
         }
 
-        public void drawAnimal(int x, int y, Color color, boolean infected)
+        public void drawAnimal(int x, int y, SavannahAnimal animal)
         {
             int left = x * xScale;
             int top = y * yScale;
-            int width = Math.max(1, xScale - 1);
-            int height = Math.max(1, yScale - 1);
-            graphics.setColor(EMPTY_COLOR);
-            graphics.fillRect(left, top, width, height);
+            int cellWidth = Math.max(1, xScale - 1);
+            int cellHeight = Math.max(1, yScale - 1);
+            int symbolSize = Math.max(3, Math.min(cellWidth, cellHeight) - 2);
+            int symbolLeft = left + Math.max(0, (cellWidth - symbolSize) / 2);
+            int symbolTop = top + Math.max(0, (cellHeight - symbolSize) / 2);
+            Color color = getColor(animal.getProfile().getName());
 
-            graphics.setColor(color);
-            graphics.fillRect(left, top, width, height);
-
-            if(infected) {
-                graphics.setColor(INFECTED_COLOR);
-                int dotSize = Math.max(2, Math.min(width, height) / 3);
-                graphics.fillOval(left + width - dotSize, top, dotSize, dotSize);
+            animalGraphics.setColor(new Color(20, 18, 12, 60));
+            animalGraphics.fillOval(symbolLeft + 1, symbolTop + 2,
+                                    symbolSize, Math.max(2, symbolSize / 2));
+            animalGraphics.setColor(color);
+            if(animal.getProfile().isPredator()) {
+                Polygon triangle = new Polygon();
+                triangle.addPoint(symbolLeft + symbolSize / 2, symbolTop);
+                triangle.addPoint(symbolLeft, symbolTop + symbolSize);
+                triangle.addPoint(symbolLeft + symbolSize, symbolTop + symbolSize);
+                animalGraphics.fillPolygon(triangle);
+                animalGraphics.setColor(new Color(25, 25, 25, 120));
+                animalGraphics.drawPolygon(triangle);
             }
+            else {
+                animalGraphics.fillOval(symbolLeft, symbolTop, symbolSize, symbolSize);
+                animalGraphics.setColor(new Color(25, 25, 25, 115));
+                animalGraphics.drawOval(symbolLeft, symbolTop, symbolSize, symbolSize);
+            }
+
+            if(animal.isSurvivalCritical()) {
+                animalGraphics.setColor(new Color(255, 145, 42, 210));
+                animalGraphics.drawOval(symbolLeft - 1, symbolTop - 1,
+                                        symbolSize + 2, symbolSize + 2);
+            }
+
+            if(animal.getStaminaStage() == StaminaStage.LOW && cellHeight >= 5) {
+                int barWidth = Math.max(2, (int)Math.round(cellWidth *
+                    (animal.getStaminaPercent() / 100.0)));
+                animalGraphics.setColor(new Color(35, 35, 35, 120));
+                animalGraphics.fillRect(left, top + cellHeight - 2, cellWidth, 2);
+                animalGraphics.setColor(new Color(245, 211, 76, 230));
+                animalGraphics.fillRect(left, top + cellHeight - 2, barWidth, 2);
+            }
+
+            if(animal.isInfected()) {
+                animalGraphics.setColor(INFECTED_COLOR);
+                int dotSize = Math.max(2, symbolSize / 3);
+                animalGraphics.fillOval(symbolLeft + symbolSize - dotSize,
+                                        symbolTop, dotSize, dotSize);
+            }
+        }
+
+        private int aggregateRow(int row)
+        {
+            if(aggregateRows <= 0) {
+                return 0;
+            }
+            return Math.max(0, Math.min(aggregateRows - 1,
+                                        row / AGGREGATE_CELL_SIZE));
+        }
+
+        private int aggregateColumn(int col)
+        {
+            if(aggregateColumns <= 0) {
+                return 0;
+            }
+            return Math.max(0, Math.min(aggregateColumns - 1,
+                                        col / AGGREGATE_CELL_SIZE));
+        }
+
+        public void drawSystemOverlay(SimulationContext context,
+                                      SimulationDiagnostics.DiagnosticSnapshot snapshot,
+                                      SimulationDiagnostics.DiagnosticSnapshot previous)
+        {
+            drawWeatherAndTimeOverlay(context);
+            drawMetricPanel(context, snapshot, previous);
+        }
+
+        private void drawWeatherAndTimeOverlay(SimulationContext context)
+        {
+            WeatherType weather = context.getWeatherSystem().getCurrentWeather();
+            Color tint;
+            if(weather == WeatherType.RAIN) {
+                tint = new Color(66, 110, 155, 44);
+            }
+            else if(weather == WeatherType.FOG) {
+                tint = new Color(226, 229, 220, 76);
+            }
+            else if(weather == WeatherType.DROUGHT) {
+                tint = new Color(221, 145, 68, 50);
+            }
+            else {
+                tint = new Color(255, 241, 174, 20);
+            }
+            animalGraphics.setColor(tint);
+            animalGraphics.fillRect(0, 0, size.width, size.height);
+
+            DayPhase phase = context.getClock().getPhase();
+            if(phase == DayPhase.NIGHT) {
+                animalGraphics.setColor(new Color(19, 32, 62, 82));
+                animalGraphics.fillRect(0, 0, size.width, size.height);
+            }
+            else if(phase == DayPhase.DAWN || phase == DayPhase.DUSK) {
+                animalGraphics.setColor(new Color(232, 122, 54, 42));
+                animalGraphics.fillRect(0, 0, size.width, size.height);
+            }
+        }
+
+        private void drawMetricPanel(SimulationContext context,
+                                     SimulationDiagnostics.DiagnosticSnapshot snapshot,
+                                     SimulationDiagnostics.DiagnosticSnapshot previous)
+        {
+            int panelWidth = Math.min(Math.max(230, size.width / 3), 330);
+            int panelHeight = 134;
+            int left = 8;
+            int top = 8;
+            animalGraphics.setColor(new Color(255, 249, 225, 205));
+            animalGraphics.fillRoundRect(left, top, panelWidth, panelHeight, 8, 8);
+            animalGraphics.setColor(new Color(70, 57, 37, 150));
+            animalGraphics.drawRoundRect(left, top, panelWidth, panelHeight, 8, 8);
+
+            Font oldFont = animalGraphics.getFont();
+            animalGraphics.setFont(oldFont.deriveFont(Font.BOLD, 12.0f));
+            animalGraphics.setColor(new Color(45, 37, 28));
+            animalGraphics.drawString("Step " + context.getStep() + "  " +
+                                      context.getClock().getDisplayText(),
+                                      left + 10, top + 18);
+
+            animalGraphics.setFont(oldFont.deriveFont(11.0f));
+            drawMetricBar(left + 10, top + 32, panelWidth - 20, "Grass",
+                          snapshot.grassPercent,
+                          new Color(94, 151, 62));
+            drawMetricBar(left + 10, top + 48, panelWidth - 20, "Disease",
+                          snapshot.diseasePercent,
+                          INFECTED_COLOR);
+            drawMetricBar(left + 10, top + 64, panelWidth - 20, "Survival",
+                          snapshot.averageSurvival,
+                          new Color(72, 137, 190));
+            drawMetricBar(left + 10, top + 80, panelWidth - 20, "Stamina",
+                          snapshot.averageStamina,
+                          new Color(222, 178, 53));
+
+            animalGraphics.setColor(new Color(45, 37, 28));
+            drawFittedString("Signals: " +
+                             SimulationDiagnostics.formatSignals(snapshot),
+                             left + 10, top + 104, panelWidth - 20);
+            drawFittedString(SimulationDiagnostics.formatShortTrend(snapshot, previous),
+                             left + 10, top + 120, panelWidth - 20);
+
+            animalGraphics.setFont(oldFont);
+        }
+
+        private void drawMetricBar(int left, int top, int width, String label,
+                                   int percent, Color color)
+        {
+            int labelWidth = 54;
+            int barWidth = width - labelWidth - 34;
+            FontMetrics metrics = animalGraphics.getFontMetrics();
+            animalGraphics.setColor(new Color(45, 37, 28));
+            animalGraphics.drawString(label, left, top + 9);
+            animalGraphics.setColor(new Color(64, 58, 45, 62));
+            animalGraphics.fillRoundRect(left + labelWidth, top, barWidth, 10, 5, 5);
+            animalGraphics.setColor(color);
+            animalGraphics.fillRoundRect(left + labelWidth, top,
+                Math.max(1, (barWidth * Math.min(100, percent)) / 100), 10, 5, 5);
+            String value = percent + "%";
+            animalGraphics.setColor(new Color(45, 37, 28));
+            animalGraphics.drawString(value, left + width - metrics.stringWidth(value),
+                                      top + 9);
+        }
+
+        private void drawFittedString(String text, int x, int baseline,
+                                      int maxWidth)
+        {
+            FontMetrics metrics = animalGraphics.getFontMetrics();
+            String fitted = text;
+            while(fitted.length() > 3 && metrics.stringWidth(fitted) > maxWidth) {
+                fitted = fitted.substring(0, fitted.length() - 4) + "...";
+            }
+            animalGraphics.drawString(fitted, x, baseline);
         }
 
         public void paintComponent(Graphics graphics)
         {
-            if(fieldImage != null) {
+            super.paintComponent(graphics);
+            if(terrainImage != null) {
                 Dimension currentSize = getSize();
                 if(size.equals(currentSize)) {
-                    graphics.drawImage(fieldImage, 0, 0, null);
+                    graphics.drawImage(terrainImage, 0, 0, null);
+                    graphics.drawImage(animalImage, 0, 0, null);
                 }
                 else {
-                    graphics.drawImage(fieldImage, 0, 0,
+                    graphics.drawImage(terrainImage, 0, 0,
+                        currentSize.width, currentSize.height, null);
+                    graphics.drawImage(animalImage, 0, 0,
                         currentSize.width, currentSize.height, null);
                 }
             }
+        }
+
+        private void clearAnimalLayer()
+        {
+            animalGraphics.setComposite(AlphaComposite.Clear);
+            animalGraphics.fillRect(0, 0, size.width, size.height);
+            animalGraphics.setComposite(AlphaComposite.SrcOver);
         }
     }
 
@@ -346,6 +604,99 @@ public class SimulatorView extends JFrame
             graphics.fillOval(x + 4, y + 4, 6, 6);
             graphics.setColor(Color.darkGray);
             graphics.drawRect(x, y, 13, 13);
+        }
+    }
+
+    private static class PredatorIcon implements Icon
+    {
+        public int getIconWidth()
+        {
+            return 14;
+        }
+
+        public int getIconHeight()
+        {
+            return 14;
+        }
+
+        public void paintIcon(java.awt.Component component, Graphics graphics, int x, int y)
+        {
+            Graphics2D g2 = (Graphics2D)graphics.create();
+            Polygon triangle = new Polygon();
+            triangle.addPoint(x + 7, y + 2);
+            triangle.addPoint(x + 2, y + 12);
+            triangle.addPoint(x + 12, y + 12);
+            g2.setColor(new Color(189, 91, 45));
+            g2.fillPolygon(triangle);
+            g2.setColor(Color.darkGray);
+            g2.drawPolygon(triangle);
+            g2.dispose();
+        }
+    }
+
+    private static class HerbivoreIcon implements Icon
+    {
+        public int getIconWidth()
+        {
+            return 14;
+        }
+
+        public int getIconHeight()
+        {
+            return 14;
+        }
+
+        public void paintIcon(java.awt.Component component, Graphics graphics, int x, int y)
+        {
+            graphics.setColor(new Color(92, 151, 72));
+            graphics.fillOval(x + 2, y + 2, 10, 10);
+            graphics.setColor(Color.darkGray);
+            graphics.drawOval(x + 2, y + 2, 10, 10);
+        }
+    }
+
+    private static class SurvivalIcon implements Icon
+    {
+        public int getIconWidth()
+        {
+            return 14;
+        }
+
+        public int getIconHeight()
+        {
+            return 14;
+        }
+
+        public void paintIcon(java.awt.Component component, Graphics graphics, int x, int y)
+        {
+            Graphics2D g2 = (Graphics2D)graphics.create();
+            g2.setColor(new Color(255, 145, 42));
+            g2.setStroke(new BasicStroke(2.0f));
+            g2.drawOval(x + 2, y + 2, 10, 10);
+            g2.dispose();
+        }
+    }
+
+    private static class StaminaIcon implements Icon
+    {
+        public int getIconWidth()
+        {
+            return 14;
+        }
+
+        public int getIconHeight()
+        {
+            return 14;
+        }
+
+        public void paintIcon(java.awt.Component component, Graphics graphics, int x, int y)
+        {
+            graphics.setColor(new Color(40, 40, 40, 130));
+            graphics.fillRect(x + 1, y + 9, 12, 3);
+            graphics.setColor(new Color(245, 211, 76));
+            graphics.fillRect(x + 1, y + 9, 7, 3);
+            graphics.setColor(Color.darkGray);
+            graphics.drawRect(x + 1, y + 9, 12, 3);
         }
     }
 
