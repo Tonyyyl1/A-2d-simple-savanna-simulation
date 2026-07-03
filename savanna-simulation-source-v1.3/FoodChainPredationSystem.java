@@ -68,6 +68,8 @@ public class FoodChainPredationSystem implements PredationSystem
                                  successChance);
         if(rand.nextDouble() <= successChance) {
             predator.spendStamina(successfulHuntCost(predator, bestPrey));
+            context.recordEvent(SimulationEvent.hunt(context.getStep(),
+                                                     predator, bestPrey));
             bestPrey.setDead();
             predator.feed(bestPrey.getProfile().getFoodValue());
             context.getDiseaseSystem().afterPredation(bestPrey, predator, context);

@@ -1,6 +1,6 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.1**
+Version: **1.3**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -10,7 +10,11 @@ test suite.
 
 ## Version Highlights
 
-- **Unreleased / Phase 1**: added an independent 2.5D savanna terrain
+- **1.3**: adds the current visual/inspect animation build, including
+  event-driven `SceneDirector` storyboard playback, improved viewport
+  interaction, terrain feedback, and the latest simulation/test sources from
+  the current workspace package.
+- **1.2 / Phase 1**: added an independent 2.5D savanna terrain
   background layer and clearer simulation feedback. The map has a deterministic
   waterhole, grassland belt, bush bands, open plain, dry soil, and a seasonal
   lowland corridor. The GUI now separates terrain, animal symbols, weather/time
@@ -57,6 +61,12 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
   population, weather, grass, disease, stamina, survival, starvation, and
   warning signals, plus trend changes and short event readouts since the
   previous diagnostic line.
+- Experimental map/disease pressure runner for testing `2x`, `3x`, and `4x`
+  linear map scales with configurable creation, founding, breeding,
+  transmission, and fatality multipliers.
+- Independent viewport interaction controller for mouse-only, keyboard-only,
+  and hybrid pan/zoom input. Default keyboard controls are `WASD` pan, `Q`
+  zoom in, and `E` zoom out.
 - No-dependency test suite with unit, system, and integration checks.
 - Headless long-run stability validation.
 
@@ -172,7 +182,7 @@ This runs:
 Latest recorded result:
 
 ```text
-Passed 65/65 tests in 5744 ms
+Passed 80/80 tests in 6022 ms
 ```
 
 Run the full daily test suite:
@@ -193,6 +203,31 @@ Run the final long stability validation:
 
 ```bash
 java SimulationRunner 200000
+```
+
+Run the map/disease pressure experiment smoke check:
+
+```bash
+java SimulationExperimentRunner smoke
+```
+
+Run the full experiment matrix:
+
+```bash
+java SimulationExperimentRunner
+```
+
+Run the selected balanced 3x candidate:
+
+```bash
+java SimulationExperimentRunner best3x
+```
+
+Latest selected 3x result after `5000` steps:
+
+```text
+Lion=299, Cheetah=213, Zebra=555, Buffalo=609, Gazelle=1014
+Final total=2690, density=0.031, balance ratio=4.76
 ```
 
 Previous validated result:

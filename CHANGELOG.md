@@ -3,10 +3,19 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
-## [Unreleased] - Phase 1 Terrain And Feedback Layer
+## [1.3] - Terrain, Inspect Animation, And Feedback Layer
 
 ### Added
 
+- Added `SimulationConfig` so experiment runs can scale map size, initial
+  creation, founding population, breeding, disease transmission, and disease
+  fatality without changing the normal baseline entry points.
+- Added `SimulationExperimentRunner` for `2x`, `3x`, and `4x` map/disease
+  pressure experiments, plus a faster `smoke` mode.
+- Added a selected `best3x` experiment configuration that keeps both predators
+  above `200` after `5000` steps while avoiding single-prey runaway growth.
+- Added independent viewport interaction classes for mouse-only, keyboard-only,
+  and hybrid pan/zoom controls.
 - Added a deterministic `TerrainMap` with a fixed seed and query support via
   `getTerrainAt(Location)`.
 - Added `TerrainType` categories for waterholes, grassland, bush, open plains,
@@ -44,6 +53,8 @@ documented here.
   is retained only for ordinary-animal sampling.
 - `SimulationRunner` now prints ecosystem diagnostics at the start, every
   `100` steps, and at the final step.
+- Disease transmission and fatality pressure can now be multiplied through
+  `SimulationConfig` for controlled experiment runs.
 - `Simulator.getSummary()` now uses the same diagnostic format as the terminal
   runner.
 
@@ -51,7 +62,13 @@ documented here.
 
 - `javac *.java`
 - `java AllTests`
-  - Latest recorded result: `65/65` tests passed in `5744 ms`.
+  - Latest recorded result: `80/80` tests passed in `6022 ms`.
+- `java SimulationExperimentRunner smoke`
+  - Latest smoke result completed `2x`, `3x`, and `4x` experiment rows.
+- `java SimulationExperimentRunner best3x`
+  - Latest recorded result after `5000` steps:
+    `{Lion=299, Cheetah=213, Zebra=555, Buffalo=609, Gazelle=1014}`,
+    density `0.031`, balance ratio `4.76`.
 
 ## [1.1] - Testing and Tuning Workflow
 

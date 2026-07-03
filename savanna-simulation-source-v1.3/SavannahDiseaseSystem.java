@@ -13,6 +13,7 @@ public class SavannahDiseaseSystem implements DiseaseSystem
     private static final double FATALITY_BASE = 0.004;
 
     private final Random rand = Randomizer.getRandom();
+    private int diseaseDeaths;
 
     public void progressDisease(SavannahAnimal animal, SimulationContext context, Field field)
     {
@@ -24,12 +25,17 @@ public class SavannahDiseaseSystem implements DiseaseSystem
             }
             if(rand.nextDouble() < recoveryChance) {
                 animal.recoverFromDisease();
+                context.recordEvent(SimulationEvent.recovery(context.getStep(), animal));
             }
             else {
-                double fatalityChance = FATALITY_BASE * animal.getInfectionLevel() *
+                double fatalityChance = FATALITY_BASE *
+                                        context.getConfig().getDiseaseFatalityMultiplier() *
+                                        animal.getInfectionLevel() *
                                         (1.0 - animal.getDiseaseResistance());
                 if(rand.nextDouble() < fatalityChance) {
+                    context.recordEvent(SimulationEvent.diseaseDeath(context.getStep(), animal));
                     animal.setDead();
+                    diseaseDeaths++;
                     return;
                 }
             }
@@ -44,10 +50,12 @@ public class SavannahDiseaseSystem implements DiseaseSystem
         }
         else {
             double risk = ENVIRONMENTAL_INFECTION_RISK *
+                          context.getConfig().getDiseaseTransmissionMultiplier() *
                           context.getWeatherSystem().getInfectionModifier() *
                           (1.0 - animal.getDiseaseResistance());
             if(rand.nextDouble() < risk) {
                 animal.infect(0.16);
+                context.recordEvent(SimulationEvent.infection(context.getStep(), animal));
             }
         }
     }
@@ -60,11 +68,14 @@ public class SavannahDiseaseSystem implements DiseaseSystem
             return;
         }
         double chance = contactIntensity *
+                        context.getConfig().getDiseaseTransmissionMultiplier() *
                         context.getWeatherSystem().getInfectionModifier() *
                         (1.0 - target.getDiseaseResistance()) *
                         source.getInfectiousness();
         if(rand.nextDouble() < chance) {
             target.infect(0.22 + source.getInfectionLevel() * 0.20);
+            context.recordEvent(SimulationEvent.infection(context.getStep(),
+                                                          source, target));
         }
     }
 
@@ -87,5 +98,15 @@ public class SavannahDiseaseSystem implements DiseaseSystem
             }
         }
         return infected;
+    }
+
+    public int getDiseaseDeaths()
+    {
+        return diseaseDeaths;
+    }
+
+    public void resetDiseaseDeaths()
+    {
+        diseaseDeaths = 0;
     }
 }

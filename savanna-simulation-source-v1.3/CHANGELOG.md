@@ -1,0 +1,191 @@
+# Changelog
+
+All notable changes for the African Savanna Predator-Prey Simulation are
+documented here.
+
+## [1.3] - Terrain, Inspect Animation, And Feedback Layer
+
+### Added
+
+- Added `SimulationConfig` so experiment runs can scale map size, initial
+  creation, founding population, breeding, disease transmission, and disease
+  fatality without changing the normal baseline entry points.
+- Added `SimulationExperimentRunner` for `2x`, `3x`, and `4x` map/disease
+  pressure experiments, plus a faster `smoke` mode.
+- Added a selected `best3x` experiment configuration that keeps both predators
+  above `200` after `5000` steps while avoiding single-prey runaway growth.
+- Added independent viewport interaction classes for mouse-only, keyboard-only,
+  and hybrid pan/zoom controls.
+- Added a deterministic `TerrainMap` with a fixed seed and query support via
+  `getTerrainAt(Location)`.
+- Added `TerrainType` categories for waterholes, grassland, bush, open plains,
+  and dry soil.
+- Added a smooth terrain background renderer with a left-center waterhole,
+  surrounding grassland, bush belts, open plains, dry soil, and a seasonal
+  lowland corridor.
+- Added 2.5D terrain styling with gradient lighting, region shadows, highlighted
+  edges, dry-soil cracks, bush clumps, lowland depth, and water highlights.
+- Added clearer animal symbols: predators are triangles, herbivores are circles,
+  infected animals keep red disease dots, critical-survival animals show orange
+  rings, and low-stamina animals show small stamina bars.
+- Added representative animal sampling so dense ordinary herbivore groups stay
+  readable while predators, infected animals, critical-survival animals, and
+  low-stamina animals remain visible.
+- Added low-interference terrain labels for the main background zones.
+- Added weather and time-of-day tint overlays plus a compact on-map metric panel
+  for grass, disease, survival, stamina, active signals, and short trends.
+- Added `SimulationDiagnostics` for readable terminal snapshots during
+  headless simulation runs, including trend changes since the previous
+  diagnostic line, high-level signals, and short event readouts.
+- Added system tests for deterministic map generation, map dimensions, terrain
+  category coverage, and safe terrain lookup.
+- Added `TerrainMap`, `TerrainType`, `TerrainTileSet`, and
+  `SimulationDiagnostics` to the BlueJ package diagram.
+
+### Changed
+
+- `SimulationContext` now owns the terrain map, but ecological behaviour does
+  not read terrain yet.
+- `SimulatorView.FieldView` now draws two layers: a cached terrain background
+  and a separate transparent animal layer.
+- Empty field cells no longer cover the terrain background.
+- Large population-pressure blocks are no longer drawn on the map; aggregation
+  is retained only for ordinary-animal sampling.
+- `SimulationRunner` now prints ecosystem diagnostics at the start, every
+  `100` steps, and at the final step.
+- Disease transmission and fatality pressure can now be multiplied through
+  `SimulationConfig` for controlled experiment runs.
+- `Simulator.getSummary()` now uses the same diagnostic format as the terminal
+  runner.
+
+### Test Coverage
+
+- `javac *.java`
+- `java AllTests`
+  - Latest recorded result: `80/80` tests passed in `6022 ms`.
+- `java SimulationExperimentRunner smoke`
+  - Latest smoke result completed `2x`, `3x`, and `4x` experiment rows.
+- `java SimulationExperimentRunner best3x`
+  - Latest recorded result after `5000` steps:
+    `{Lion=299, Cheetah=213, Zebra=555, Buffalo=609, Gazelle=1014}`,
+    density `0.031`, balance ratio `4.76`.
+
+## [1.1] - Testing and Tuning Workflow
+
+### Added
+
+- Added a no-dependency test module that works with plain Java and BlueJ.
+- Added `AllTests.java` as the main test entry point.
+- Added `TestSupport.java` for assertions, pass/fail output, timing, and exit
+  status.
+- Added `SimulationUnitTests.java` for local rule checks.
+- Added `SimulationSystemTests.java` for subsystem interaction checks.
+- Added `SimulationIntegrationTests.java` for headless stability checks.
+- Added `TUNING_EFFICIENCY.md` to document the layered tuning workflow and
+  timing evidence.
+- Added `UPDATE_NOTES.md` as a concise release/update summary.
+
+### Test Coverage
+
+- `java AllTests`
+  - Runs unit tests, system tests, and a `1000` step headless stability test.
+  - Latest recorded result: `47/47` tests passed in `5683 ms`.
+- `java AllTests full`
+  - Runs the default suite plus a `5000` step headless stability test.
+  - Latest recorded result: `50/50` tests passed in `34205 ms`.
+- `java SimulationRunner 200000`
+  - Remains the final long-run validation command.
+  - Previous validated result: no extinction, final balance ratio `6.03`,
+    runtime `1116418 ms`.
+
+### Improved
+
+- Documented a staged tuning workflow:
+  1. Run `java AllTests`.
+  2. Run `java AllTests full`.
+  3. Run `java SimulationRunner 200000` after major parameter changes.
+- Demonstrated that `AllTests full` is about `96.94%` faster than one direct
+  200000-step run.
+- Demonstrated that two candidate tuning rounds plus one final 200000-step run
+  reduce tuning time by about `46.94%` compared with repeatedly running 200000
+  steps.
+
+## [1.0] - Stamina, Survival, and Stable Visual Simulation
+
+### Added
+
+- Reworked the original foxes-and-rabbits style simulation into a five-species
+  African savanna ecosystem.
+- Added five species:
+  - Lion
+  - Cheetah
+  - Zebra
+  - Buffalo
+  - Gazelle
+- Added a species registry and species profiles so behaviour is driven by
+  configuration rather than hard-coded species checks.
+- Added interface-based ecosystem systems:
+  - `WeatherSystem`
+  - `DiseaseSystem`
+  - `FoodSystem`
+  - `PredationSystem`
+  - `BreedingSystem`
+  - `SimulationRecorder`
+
+### Stamina and Survival
+
+- Added stamina with high, medium, and low stages.
+- Added stamina costs for movement, hunting, grazing, and breeding.
+- Added daily stamina recovery based on two required factors:
+  - food level
+  - rest time
+- Added survival value derived from `foodLevel / maxFoodLevel`.
+- Added survival-pressure behaviour:
+  - above `70%`: normal behaviour
+  - `30%-70%`: increasing pressure
+  - below `30%`: urgent hunting or grazing
+- Added temporary `120%` effective stamina behaviour boost when survival is
+  critical, without permanently increasing real stamina.
+- Changed starvation so animals die only after three consecutive starving
+  steps instead of immediately at `foodLevel <= 0`.
+
+### Ecosystem Systems
+
+- Added weather states:
+  - Clear
+  - Rain
+  - Fog
+  - Drought
+- Linked rain, fog, and drought to infection risk, grass growth, and predator
+  visibility.
+- Added disease progression, environmental infection, close-contact infection,
+  and infection through eating infected prey.
+- Added grass growth and grazing for herbivores.
+- Added food-chain predation with species-specific prey lists.
+- Added stamina-sensitive hunting success and hunting stamina cost.
+- Added rare-prey protection through prey-abundance weighting.
+- Added male/female breeding with nearby adult mate requirements.
+- Added cub, juvenile, and adult life stages.
+
+### Visuals and Reporting
+
+- Added a visual simulation runner with main simulation window.
+- Added pause/resume and stop-and-exit controls.
+- Simplified grid icons for readability.
+- Added live interval record window.
+- Added separate live chart window showing:
+  - species populations
+  - disease count
+  - average stamina
+  - average survival
+  - grass level
+- Changed visual refresh and report recording to every `100` steps while still
+  calculating every ecological step.
+- Added final HTML report generation.
+
+### Stability
+
+- Added `SimulationRunner` for headless long-run validation.
+- Tuned the ecosystem to complete `200000` steps without extinction.
+- Recorded a validated 200000-step result in
+  `200k-stamina-balance-test-summary.txt`.

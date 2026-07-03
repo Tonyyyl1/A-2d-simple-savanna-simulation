@@ -18,7 +18,7 @@ public class MateFindingBreedingSystem implements BreedingSystem
             return;
         }
 
-        double probability = parent.getProfile().getBreedingProbability();
+        double probability = context.getBreedingProbability(parent.getProfile());
         if(parent.isInfected()) {
             probability *= 0.55;
         }
@@ -47,6 +47,9 @@ public class MateFindingBreedingSystem implements BreedingSystem
                 Location birthLocation = freeLocations.remove(0);
                 SavannahAnimal child = parent.createChild(birthLocation);
                 nextFieldState.placeAnimal(child, birthLocation);
+                context.recordEvent(SimulationEvent.birth(context.getStep(),
+                                                          parent, child,
+                                                          birthLocation));
             }
             parent.spendBreedingStamina();
         }
@@ -57,7 +60,8 @@ public class MateFindingBreedingSystem implements BreedingSystem
     {
         int range = parent.getProfile().getBreedingRange();
         int population = context.getPopulation(parent.getProfile().getName());
-        int recoveryPopulation = Math.max(1, parent.getProfile().getFoundingPopulation() * 2);
+        int recoveryPopulation = Math.max(1,
+            context.getFoundingPopulation(parent.getProfile()) * 2);
         if(population < recoveryPopulation) {
             range *= 2;
         }
@@ -130,7 +134,8 @@ public class MateFindingBreedingSystem implements BreedingSystem
                                                  SimulationContext context)
     {
         int population = context.getPopulation(parent.getProfile().getName());
-        int recoveryPopulation = Math.max(1, parent.getProfile().getFoundingPopulation() * 2);
+        int recoveryPopulation = Math.max(1,
+            context.getFoundingPopulation(parent.getProfile()) * 2);
         if(population >= recoveryPopulation) {
             return 1.0;
         }
@@ -142,7 +147,7 @@ public class MateFindingBreedingSystem implements BreedingSystem
                                              SimulationContext context)
     {
         int population = context.getPopulation(parent.getProfile().getName());
-        int target = populationTarget(parent.getProfile());
+        int target = populationTarget(parent.getProfile(), context);
         if(population < target / 2) {
             double shortage = (double)(target / 2 - population) / Math.max(1, target / 2);
             return 1.0 + shortage * 1.25;
@@ -156,9 +161,9 @@ public class MateFindingBreedingSystem implements BreedingSystem
         }
     }
 
-    private int populationTarget(SpeciesProfile profile)
+    private int populationTarget(SpeciesProfile profile, SimulationContext context)
     {
         int multiplier = profile.isPredator() ? 5 : 10;
-        return Math.max(1, profile.getFoundingPopulation() * multiplier);
+        return Math.max(1, context.getFoundingPopulation(profile) * multiplier);
     }
 }

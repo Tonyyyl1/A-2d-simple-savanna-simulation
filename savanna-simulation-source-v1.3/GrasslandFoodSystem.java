@@ -73,6 +73,8 @@ public class GrasslandFoodSystem implements FoodSystem
                                          herbivore.getProfile().getPlantFoodValue());
         if(foodGained > 0) {
             herbivore.feed(foodGained);
+            context.recordEvent(SimulationEvent.graze(context.getStep(),
+                                                      herbivore, location));
         }
     }
 

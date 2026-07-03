@@ -5,5 +5,9 @@ public interface SimulationControlHandler
 {
     void togglePaused();
 
+    void setPaused(boolean paused);
+
+    boolean isPaused();
+
     void requestStopAndExit();
 }
