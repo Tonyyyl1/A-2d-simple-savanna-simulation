@@ -3,10 +3,68 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
-## [1.3] - Terrain, Inspect Animation, And Feedback Layer
+## [Unreleased] - v1.4 3x Startup, Water Safety, Habitat Tuning, Render Alignment, And Status Log
+
+### Fixed
+
+- Fixed critical render-layer bug where ordinary animal markers drifted onto
+  the painted water surface due to integer-truncated cell-to-pixel scaling in
+  FieldView (xScale/yScale were `int`, but the terrain background used
+  continuous mapping). Animal layer and terrain background now use the same
+  continuous mapping, so markers stay aligned at every window size including
+  non-integer multiples. All three water-safety audits (living animals,
+  ordinary markers, inspect actors) pass on multiple panel sizes including
+  1387×829, 1093×731, 640×480.
+- Fixed dead code in `WaterSafetyProbe`: `countOrdinaryVisualSamplesOnWater`
+  never incremented count when markers touched water (only had `continue`, no
+  `count++`). Now properly audits multi-panel-size coverage and reports
+  violations.
+- Fixed visual-water predicate mismatch: `isVisuallyWaterAt` used ellipse
+  distance approximation (±1.02), but the actual water surface is drawn by
+  clipping to WATERHOLE grid cells. Replaced with exact grid lookup to
+  guarantee logic and visuals agree everywhere.
+
+### Test Coverage (Render Alignment And Status Log)
+
+- `java AllTests`
+  - Latest recorded result: `139/139` tests passed in `16164 ms`
+    (adds 2 prevention tests to the count below).
+- `java WaterSafetyProbe 1000 100`
+  - Multi-panel audit: water animals == 0, ordinary markers == 0, inspect
+    actors == 0 at all tested sizes (4x integer, 1387×829, 1093×731, 640×480).
+- Jar-packaged verification (`AllTests` run against the built jar):
+  `139/139` tests passed.
+- Automated audits only: the Swing GUI window has not been visually confirmed
+  in this environment (no screenshot/display tooling available for a desktop
+  app here). Treat visual confirmation as still pending until run locally.
 
 ### Added
 
+- Added bilingual (Chinese/English) animal status dialog, opened by clicking
+  an animal icon in inspect (zoomed) mode. Shows a snapshot of: current
+  attributes (species, ID, sex, age, life stage, food, survival %, stamina,
+  disease state, starving steps, location, terrain, step, weather) and event
+  log (last 60 relevant events: hunts, births, infections, grazing, movement,
+  deaths).
+- Added click detection in viewport interaction, distinguished from
+  drag-panning by 4-pixel tolerance. Inspect mode (zoom ≥ 2.5) finds the
+  nearest animal within 1.6 cells of the click and shows its status dialog.
+- Added two prevention tests, `testVisualWaterMatchesTerrainGrid` and
+  `testMarkerGeometryStaysCentred`, to lock the alignment fix against future
+  integer-scale regressions.
+
+- Added `SimulationConfig.default3x()` as the normal default configuration,
+  including default random seed `1111` and terrain seed `20260629`.
+- Added `StartupConfigDialog` so visual runs start with an initialization
+  screen for steps, delay, tuning multipliers, random seed, and terrain seed.
+- Added `Randomizer.reset(long)`, `getSeed()`, and `getDefaultSeed()` for
+  reproducible seeded runs.
+- Added `TerrainNavigator` with passable-neighbour lookup and one-BFS
+  reachability distance maps for terrain-aware movement and hunting.
+- Added `HabitatPreferences` with stronger species preferences for spawn,
+  movement, grazing, and hunting scores.
+- Added `WaterSafetyProbe` and system-test water audits for step 0 and every
+  100 steps through step 1000.
 - Added `SimulationConfig` so experiment runs can scale map size, initial
   creation, founding population, breeding, disease transmission, and disease
   fatality without changing the normal baseline entry points.
@@ -44,8 +102,39 @@ documented here.
 
 ### Changed
 
-- `SimulationContext` now owns the terrain map, but ecological behaviour does
-  not read terrain yet.
+- The no-argument and visual simulator defaults now use the 3x
+  `target3xBalanced` configuration instead of the old 1x baseline.
+- `SimulationContext` now builds terrain from the configured terrain seed.
+- `Simulator.reset()` now resets randomization from the configured random seed.
+- Initial population, founder placement, movement, grazing, births, and
+  defensive final placement now avoid waterhole cells.
+- Predator hunting now computes reachability once per predator hunt instead of
+  recomputing path distance for every candidate prey location.
+- Grassland grazing scores now combine available grass with the animal's
+  habitat preference.
+- Lion and cheetah hunting scores now make bush/open-plain advantages more
+  visible.
+- `SimulatorView` window titles include the active configuration summary,
+  including random and terrain seeds.
+- Inspect mode now renders independently from the ordinary animal-dot layer,
+  so behavior actors and `eat`/event labels are not overlaid on top of normal
+  map dots.
+- Inspect mode now keeps every visible viewport animal as a behavior actor
+  instead of capping the actor layer at 20 and relying on normal dots to fill
+  the gap.
+- Dense inspect views now thin only low-priority `forage`/`prowl` text markers,
+  not animal icons.
+- Inspect animation keyframes are now terrain-sanitized, and any actor whose
+  interpolated trajectory would cross water is collapsed onto a safe land
+  footprint instead of sweeping through the waterhole.
+- Inspect actors are anchored at cell centers and nudged away from water when
+  their visual footprint would touch a waterhole edge.
+- Ordinary map drawing skips any passability-violating animal location as a
+  final visual guard while water audits continue to catch true Field bugs.
+- Ordinary map drawing now also checks the final marker footprint against a
+  visual water mask, so grassland shoreline cells whose marker would overlap
+  the blue water surface are not drawn on top of the waterhole.
+- `SimulationContext` owns the terrain map.
 - `SimulatorView.FieldView` now draws two layers: a cached terrain background
   and a separate transparent animal layer.
 - Empty field cells no longer cover the terrain background.
@@ -62,7 +151,22 @@ documented here.
 
 - `javac *.java`
 - `java AllTests`
-  - Latest recorded result: `80/80` tests passed in `6022 ms`.
+  - Latest recorded result: `115/115` tests passed in `35429 ms`.
+- `javac -d /private/tmp/savanna-v14-build *.java`
+- `java -cp /private/tmp/savanna-v14-build AllTests`
+  - Latest recorded result: `115/115` tests passed in `33168 ms`.
+- `java -cp /private/tmp/savanna-v14-build AllTests full`
+  - Latest recorded result: `118/118` tests passed in `415434 ms`.
+- `java WaterSafetyProbe 1000 100`
+  - Passed with `water animals == 0`, `ordinary visual water samples == 0`,
+    and `visual water samples == 0` at step 0 and every 100 steps to 1000.
+- `java WaterSafetyProbe 1000 100 baseline`
+  - Passed with `water animals == 0` at step 0 and every 100 steps to 1000.
+- `java WaterSafetyProbe 5000 500`
+  - Passed with `water animals == 0` at step 0 and every 500 steps to 5000.
+- `java WaterSafetyProbe 18500 500`
+  - Passed with `water animals == 0`, `ordinary visual water samples == 0`,
+    and `visual water samples == 0` at step 0 and every 500 steps to 18500.
 - `java SimulationExperimentRunner smoke`
   - Latest smoke result completed `2x`, `3x`, and `4x` experiment rows.
 - `java SimulationExperimentRunner best3x`

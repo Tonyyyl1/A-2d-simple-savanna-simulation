@@ -1,4 +1,4 @@
-Project: African Savanna Predator/Prey Simulation v1.3
+Project: African Savanna Predator/Prey Simulation
 
 This project extends the original foxes-and-rabbits handout into a five-species
 African savanna ecosystem.
