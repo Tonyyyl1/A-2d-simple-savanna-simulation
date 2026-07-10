@@ -1,6 +1,6 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.4**
+Version: **1.5**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -10,7 +10,7 @@ test suite.
 
 ## Version Highlights
 
-- **Unreleased / shared renderer + status dialog + thirst experiment**:
+- **1.5 / shared renderer + status dialog + thirst experiment**:
   ordinary animal marker rendering now goes through shared `FieldRenderer`,
   keeping live view and future snapshot tools on the same `VisualGridGeometry`
   / `VisualFootprint` path. Inspect clicks open an enhanced bilingual
@@ -19,13 +19,13 @@ test suite.
   `SimulationConfig` and `StartupConfigDialog`, but remains **off by default**;
   when enabled, animals drink from passable shoreline cells rather than entering
   `WATERHOLE`.
-- **Unreleased / v1.4 context RNG + water probe**: ecological randomness now
+- **1.4 / context RNG + water probe**: ecological randomness now
   belongs to each `SimulationContext`, so simulator runs no longer depend on a
   shared global random stream. `WaterSafetyProbe` audits ordinary marker
   footprints across multiple panel sizes, including non-integer grid scales.
   Release builds now ship as `releases/<tag>/` with a jar, matching source zip,
   and `MANIFEST.txt`.
-- **Unreleased / Phase 1**: added an independent 2.5D savanna terrain
+- **Earlier Phase 1 / terrain and feedback**: added an independent 2.5D savanna terrain
   background layer and clearer simulation feedback. The map has a deterministic
   waterhole, grassland belt, bush bands, open plain, dry soil, and a seasonal
   lowland corridor. The GUI now separates terrain, animal symbols, weather/time
