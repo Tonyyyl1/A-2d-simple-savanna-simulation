@@ -1,5 +1,7 @@
 # African Savanna Predator-Prey Simulation
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+<p align="right">
+  English | <a href="./README.zh-CN.md">简体中文</a>
+</p>
 
 Version: **1.5**
 
