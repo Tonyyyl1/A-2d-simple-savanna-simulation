@@ -1,5 +1,6 @@
 # African Savanna Predator-Prey Simulation
 [English](./README.md) | [简体中文](./README.zh.md)
+
 Version: **1.5**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
