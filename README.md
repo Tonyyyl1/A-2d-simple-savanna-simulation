@@ -1,7 +1,13 @@
 # African Savanna Predator-Prey Simulation
 [English](./README.md) | [简体中文](./README.zh.md)
 
-Version: **1.5**
+Version: **1.6**
+
+Latest release: **v1.6-display-fact-audit**
+
+- [Runnable JAR](releases/v1.6-display-fact-audit/savanna-simulation-v1.6-display-fact-audit.jar)
+- [Release source archive](releases/v1.6-display-fact-audit/savanna-simulation-v1.6-display-fact-audit-source.zip)
+- [Release manifest](releases/v1.6-display-fact-audit/MANIFEST.txt)
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -11,6 +17,11 @@ test suite.
 
 ## Version Highlights
 
+- **1.6 / atomic overview frame + display fact audit**: ordinary terrain and
+  foreground are built privately and committed as one completed EDT-owned
+  frame, eliminating terrain-only frames during refresh and resize. The B3
+  audit records immutable ID/species/location facts for Field, ordinary marker
+  candidates, and inspect actors without changing the ecological random stream.
 - **1.5 / shared renderer + status dialog + thirst experiment**:
   ordinary animal marker rendering now goes through shared `FieldRenderer`,
   keeping live view and future snapshot tools on the same `VisualGridGeometry`

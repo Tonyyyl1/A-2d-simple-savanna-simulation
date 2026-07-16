@@ -1,0 +1,12 @@
+savanna-simulation v1.6-display-fact-audit
+====================
+
+Build date: 2026-07-15 20:18:43
+Jar: savanna-simulation-v1.6-display-fact-audit.jar
+Source snapshot: savanna-simulation-v1.6-display-fact-audit-source.zip
+Main-Class: VisualSimulationRunner
+Verification: passed (JAR AllTests, B3/B1 probes, WaterSafetyProbe 1000/18500)
+Verified 2026-07-15 20:31:17: jar AllTests + WaterSafetyProbe 1000/18500 passed
+Verified 2026-07-15 20:32:10: jar AllTests + WaterSafetyProbe 1000/18500 passed
+Verified 2026-07-15 20:32:55: jar AllTests + WaterSafetyProbe 1000/18500 passed
+Verified 2026-07-15 20:33:26: jar AllTests + WaterSafetyProbe 1000/18500 passed

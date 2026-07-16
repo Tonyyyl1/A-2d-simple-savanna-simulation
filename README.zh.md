@@ -3,13 +3,24 @@
 [English](./README.md) | [简体中文](./README.zh.md)
 
 
-版本：**1.5**
+版本：**1.6**
+
+最新发布：**v1.6-display-fact-audit**
+
+- [可运行 JAR](releases/v1.6-display-fact-audit/savanna-simulation-v1.6-display-fact-audit.jar)
+- [发布源码包](releases/v1.6-display-fact-audit/savanna-simulation-v1.6-display-fact-audit-source.zip)
+- [发布清单](releases/v1.6-display-fact-audit/MANIFEST.txt)
 
 这是一个使用 Java 和 BlueJ 开发、采用面向对象设计的非洲草原生态系统模拟项目。
 
 本项目将经典的狐狸与兔子捕食者—猎物模型扩展为一个包含五种动物的生态系统，并加入天气、疾病、草地、食物链、繁殖、体力、生存压力、可视化输出、实时图表、运行报告以及无外部依赖测试套件。
 
 ## 版本亮点
+
+* **1.6／原子概览帧与显示事实审计**：普通 terrain 与前景会先在私有缓冲区完成绘制，
+  再作为一张由 EDT 持有的完整帧提交，消除刷新与 resize 时只剩 terrain 的空前景问题。
+  B3 审计记录 Field、普通 marker 候选和 inspect actor 的不可变 ID、物种与位置事实，
+  不改变生态随机流。
 
 * **1.5／共享渲染器、状态弹窗与口渴实验系统**：
   普通动物标记现在统一通过共享的 `FieldRenderer` 进行绘制，使实时视图与未来的快照工具能够共用 `VisualGridGeometry` 和 `VisualFootprint` 渲染路径。

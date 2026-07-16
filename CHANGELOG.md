@@ -3,6 +3,21 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
+## [1.6] - Atomic Overview Frames And Display Fact Audit
+
+### Added
+
+- Added atomic ordinary overview-frame publication and deterministic B2
+  ownership verification.
+- Added B3 immutable fact auditing for Field, ordinary marker candidates, and
+  inspect actors, with negative checks for missing IDs, species mismatches,
+  dead actors, and viewport violations.
+
+### Verification
+
+- Release JAR passed 253/253 automated tests, B3 fact audit, B1 actor
+  consistency, and WaterSafetyProbe through steps 1,000 and 18,500.
+
 ## [Unreleased] - v1.4 3x Startup, Water Safety, Habitat Tuning, Context RNG, Shared Renderer, And Thirst Experiment
 
 ### Added
