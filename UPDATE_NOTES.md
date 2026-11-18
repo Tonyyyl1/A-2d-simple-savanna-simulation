@@ -20,6 +20,19 @@ parameter-tuning time by catching local errors before running the expensive
 
 ## Added
 
+- `SimulationConfig.java`
+  - Lets experiment runs scale map size, starting density, founding
+    populations, breeding, disease transmission, and disease fatality without
+    changing the baseline simulator defaults.
+- `SimulationExperimentRunner.java`
+  - Runs `2x`, `3x`, and `4x` map/disease pressure experiments and prints a
+    compact stability table.
+  - Includes `best3x` mode. Latest `5000` step result:
+    `Lion=299`, `Cheetah=213`, `Zebra=555`, `Buffalo=609`,
+    `Gazelle=1014`, density `0.031`, balance ratio `4.76`.
+- Independent viewport interaction controls
+  - Adds mouse-only, keyboard-only, and hybrid pan/zoom support.
+  - Default keyboard controls are `WASD` pan, `Q` zoom in, and `E` zoom out.
 - `TerrainMap.java`
   - Fixed-seed terrain generator and 2.5D background renderer.
   - Draws large terrain regions with lighting, shadows, highlighted borders,
@@ -84,7 +97,7 @@ java AllTests
 Latest result:
 
 ```text
-Passed 65/65 tests in 5744 ms
+Passed 80/80 tests in 6022 ms
 ```
 
 Run the full daily test suite:

@@ -87,7 +87,7 @@ public abstract class SavannahAnimal extends Animal
                 context.getFoodSystem().feedHerbivoreAt(this, getLocation(), context);
             }
 
-            placeInNextField(nextFieldState, nextLocation, freeLocations);
+            placeInNextField(nextFieldState, nextLocation, freeLocations, context);
         }
     }
 
@@ -400,7 +400,8 @@ public abstract class SavannahAnimal extends Animal
     }
 
     private void placeInNextField(Field nextFieldState, Location preferredLocation,
-                                  List<Location> freeLocations)
+                                  List<Location> freeLocations,
+                                  SimulationContext context)
     {
         Location oldLocation = getLocation();
         Location destination = preferredLocation;
@@ -408,13 +409,13 @@ public abstract class SavannahAnimal extends Animal
             destination = getLocation();
         }
         if(destination != null && nextFieldState.getAnimalAt(destination) == null) {
-            recordMovementOrRest(oldLocation, destination);
+            recordMovementOrRest(oldLocation, destination, context);
             setLocation(destination);
             nextFieldState.placeAnimal(this, destination);
         }
         else if(!freeLocations.isEmpty()) {
             destination = freeLocations.remove(0);
-            recordMovementOrRest(oldLocation, destination);
+            recordMovementOrRest(oldLocation, destination, context);
             setLocation(destination);
             nextFieldState.placeAnimal(this, destination);
         }
@@ -423,13 +424,19 @@ public abstract class SavannahAnimal extends Animal
         }
     }
 
-    private void recordMovementOrRest(Location oldLocation, Location destination)
+    private void recordMovementOrRest(Location oldLocation, Location destination,
+                                      SimulationContext context)
     {
         if(oldLocation != null && oldLocation.equals(destination)) {
             recordRestHour();
         }
         else {
             spendStamina(STAMINA_MOVE_COST);
+            if(oldLocation != null && destination != null) {
+                context.recordEvent(SimulationEvent.move(context.getStep(),
+                                                         this, oldLocation,
+                                                         destination));
+            }
         }
     }
 
@@ -452,7 +459,7 @@ public abstract class SavannahAnimal extends Animal
     private int populationPressureEnergyUse(SimulationContext context)
     {
         int population = context.getPopulation(profile.getName());
-        int target = populationTarget();
+        int target = populationTarget(context);
         if(population <= target) {
             return 0;
         }
@@ -463,10 +470,10 @@ public abstract class SavannahAnimal extends Animal
         return Math.min(3, (int)Math.ceil(pressure * 1.35));
     }
 
-    private int populationTarget()
+    private int populationTarget(SimulationContext context)
     {
         int multiplier = profile.isPredator() ? 5 : 10;
-        return Math.max(1, profile.getFoundingPopulation() * multiplier);
+        return Math.max(1, context.getFoundingPopulation(profile) * multiplier);
     }
 
     private double clamp(double value, double min, double max)

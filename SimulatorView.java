@@ -2,6 +2,7 @@ import java.awt.BorderLayout;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -10,17 +11,24 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.swing.JButton;
 import javax.swing.Icon;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.Timer;
 
 /**
  * A graphical view of the savanna simulation grid.
@@ -29,6 +37,7 @@ public class SimulatorView extends JFrame
 {
     private static final Color UNKNOWN_COLOR = Color.gray;
     private static final Color INFECTED_COLOR = new Color(210, 35, 42);
+    private static final double HOLD_MS = 450.0;
     private static final String STEP_PREFIX = "Step: ";
     private static final String POPULATION_PREFIX = "Population: ";
 
@@ -40,12 +49,30 @@ public class SimulatorView extends JFrame
     private final FieldView fieldView;
     private final Map<String, Color> colors;
     private final FieldStats stats;
+    private final ViewInteractionController interactionController;
+    private final AnimalIconSet iconSet;
     private SimulationControlHandler controlHandler;
     private SimulationDiagnostics.DiagnosticSnapshot previousSnapshot;
+    private Field lastField;
+    private SimulationContext lastContext;
+    private List<SimulationEvent> lastEvents;
+    private List<SceneDirector.Scene> storyboard;
+    private List<SceneDirector.SceneActor> ambientActors;
+    private int sceneIndex;
+    private long sceneStartNanos;
+    private long ambientStartNanos;
+    private Timer sceneTimer;
+    private boolean inspectMode;
+    private boolean pauseBeforeInspect;
 
     public SimulatorView(int height, int width)
     {
         stats = new FieldStats();
+        interactionController = new ViewInteractionController();
+        iconSet = new AnimalIconSet();
+        lastEvents = Collections.emptyList();
+        storyboard = Collections.emptyList();
+        ambientActors = Collections.emptyList();
         colors = new LinkedHashMap<>();
         for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
             setColor(factory.getProfile().getName(), factory.getProfile().getColor());
@@ -68,6 +95,14 @@ public class SimulatorView extends JFrame
         });
 
         fieldView = new FieldView(height, width);
+        interactionController.addViewportChangeListener(
+            new ViewInteractionController.ViewportChangeListener() {
+                public void viewportChanged()
+                {
+                    updateInspectMode();
+                }
+            });
+        interactionController.register(fieldView, fieldView);
 
         JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 1));
         controlsPanel.add(pauseButton);
@@ -119,6 +154,7 @@ public class SimulatorView extends JFrame
         pauseButton.setEnabled(false);
         stopButton.setEnabled(false);
         stopButton.setText("Stopping...");
+        stopSceneTimer();
     }
 
     /**
@@ -137,6 +173,11 @@ public class SimulatorView extends JFrame
         if(!isVisible()) {
             setVisible(true);
         }
+
+        lastField = field;
+        lastContext = context;
+        lastEvents = context == null ? Collections.emptyList() :
+            new ArrayList<>(context.getRecentEvents());
 
         stepLabel.setText(STEP_PREFIX + step);
         if(context != null) {
@@ -190,6 +231,120 @@ public class SimulatorView extends JFrame
         return stats.isViable(field);
     }
 
+    public boolean isInspectMode()
+    {
+        return interactionController.isInspectMode();
+    }
+
+    private void updateInspectMode()
+    {
+        boolean shouldInspect = interactionController.isInspectMode();
+        if(shouldInspect == inspectMode) {
+            if(inspectMode) {
+                rebuildStoryboard();
+            }
+            return;
+        }
+        if(shouldInspect) {
+            enterInspectMode();
+        }
+        else {
+            exitInspectMode();
+        }
+    }
+
+    private void enterInspectMode()
+    {
+        inspectMode = true;
+        pauseBeforeInspect = controlHandler != null && controlHandler.isPaused();
+        if(controlHandler != null && !pauseBeforeInspect) {
+            controlHandler.setPaused(true);
+        }
+        rebuildStoryboard();
+    }
+
+    private void exitInspectMode()
+    {
+        inspectMode = false;
+        stopSceneTimer();
+        storyboard = Collections.emptyList();
+        ambientActors = Collections.emptyList();
+        if(controlHandler != null && !pauseBeforeInspect) {
+            controlHandler.setPaused(false);
+        }
+        fieldView.repaint();
+    }
+
+    private void rebuildStoryboard()
+    {
+        if(lastField == null || lastContext == null) {
+            storyboard = Collections.emptyList();
+            ambientActors = Collections.emptyList();
+            stopSceneTimer();
+            fieldView.repaint();
+            return;
+        }
+        Rectangle viewport = fieldView.visibleCells();
+        storyboard = SceneDirector.buildScene(lastEvents, lastField,
+                                             lastContext.getTerrainMap(),
+                                             viewport);
+        ambientActors = SceneDirector.buildBehaviorActors(lastEvents, lastField,
+                                                          viewport);
+        sceneIndex = 0;
+        sceneStartNanos = System.nanoTime();
+        ambientStartNanos = sceneStartNanos;
+        if(storyboard.isEmpty() && ambientActors.isEmpty()) {
+            stopSceneTimer();
+        }
+        else {
+            sceneTimer().restart();
+        }
+        fieldView.repaint();
+    }
+
+    private Timer sceneTimer()
+    {
+        if(sceneTimer == null) {
+            sceneTimer = new Timer(33, event -> advanceStoryboard());
+        }
+        return sceneTimer;
+    }
+
+    private void stopSceneTimer()
+    {
+        if(sceneTimer != null) {
+            sceneTimer.stop();
+        }
+    }
+
+    private void advanceStoryboard()
+    {
+        if(storyboard.isEmpty()) {
+            if(ambientActors.isEmpty()) {
+                stopSceneTimer();
+            }
+            fieldView.repaint();
+            return;
+        }
+        if(sceneIndex >= storyboard.size()) {
+            if(ambientActors.isEmpty()) {
+                stopSceneTimer();
+            }
+            fieldView.repaint();
+            return;
+        }
+        double elapsedMs = (System.nanoTime() - sceneStartNanos) / 1_000_000.0;
+        SceneDirector.Scene current = storyboard.get(sceneIndex);
+        if(elapsedMs > current.durationMs + HOLD_MS) {
+            sceneIndex++;
+            sceneStartNanos = System.nanoTime();
+            if(sceneIndex >= storyboard.size()) {
+                stopSceneTimer();
+            }
+        }
+        fieldView.repaint();
+    }
+
     private Color getColor(String speciesName)
     {
         Color color = colors.get(speciesName);
@@ -235,6 +390,7 @@ public class SimulatorView extends JFrame
      * Custom component that displays the field.
      */
     private class FieldView extends JPanel
+        implements ViewInteractionController.SizeProvider
     {
         private static final int GRID_VIEW_SCALING_FACTOR = 10;
         private static final int AGGREGATE_CELL_SIZE = 8;
@@ -263,6 +419,26 @@ public class SimulatorView extends JFrame
         {
             return new Dimension(gridWidth * GRID_VIEW_SCALING_FACTOR,
                                  gridHeight * GRID_VIEW_SCALING_FACTOR);
+        }
+
+        public int viewWidth()
+        {
+            return getWidth();
+        }
+
+        public int viewHeight()
+        {
+            return getHeight();
+        }
+
+        public int contentWidth()
+        {
+            return Math.max(1, size.width);
+        }
+
+        public int contentHeight()
+        {
+            return Math.max(1, size.height);
         }
 
         public void preparePaint(TerrainMap currentTerrainMap)
@@ -535,17 +711,251 @@ public class SimulatorView extends JFrame
             super.paintComponent(graphics);
             if(terrainImage != null) {
                 Dimension currentSize = getSize();
-                if(size.equals(currentSize)) {
-                    graphics.drawImage(terrainImage, 0, 0, null);
-                    graphics.drawImage(animalImage, 0, 0, null);
+                Graphics2D g2 = (Graphics2D)graphics.create();
+                interactionController.getTransform().apply(g2);
+                int drawWidth = size.equals(currentSize) ? size.width :
+                    currentSize.width;
+                int drawHeight = size.equals(currentSize) ? size.height :
+                    currentSize.height;
+                g2.drawImage(terrainImage, 0, 0, drawWidth, drawHeight, null);
+                if(!inspectMode) {
+                    g2.drawImage(animalImage, 0, 0, drawWidth, drawHeight, null);
                 }
-                else {
-                    graphics.drawImage(terrainImage, 0, 0,
-                        currentSize.width, currentSize.height, null);
-                    graphics.drawImage(animalImage, 0, 0,
-                        currentSize.width, currentSize.height, null);
+                g2.dispose();
+                if(inspectMode) {
+                    Graphics2D screen = (Graphics2D)graphics.create();
+                    screen.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                            RenderingHints.VALUE_ANTIALIAS_ON);
+                    drawInspectLayer(screen);
+                    screen.dispose();
                 }
             }
+        }
+
+        Rectangle visibleCells()
+        {
+            ViewportTransform transform = interactionController.getTransform();
+            double zoom = Math.max(0.0001, transform.getZoom());
+            double cellWidth = Math.max(1, xScale);
+            double cellHeight = Math.max(1, yScale);
+            int viewW = getWidth() > 0 ? getWidth() : size.width;
+            int viewH = getHeight() > 0 ? getHeight() : size.height;
+            int colMin = (int)Math.floor(-transform.getOffsetX() / (zoom * cellWidth));
+            int colMax = (int)Math.ceil((viewW - transform.getOffsetX()) /
+                                        (zoom * cellWidth));
+            int rowMin = (int)Math.floor(-transform.getOffsetY() / (zoom * cellHeight));
+            int rowMax = (int)Math.ceil((viewH - transform.getOffsetY()) /
+                                        (zoom * cellHeight));
+            colMin = Math.max(0, Math.min(gridWidth - 1, colMin));
+            colMax = Math.max(0, Math.min(gridWidth - 1, colMax));
+            rowMin = Math.max(0, Math.min(gridHeight - 1, rowMin));
+            rowMax = Math.max(0, Math.min(gridHeight - 1, rowMax));
+            return new Rectangle(colMin, rowMin,
+                Math.max(1, colMax - colMin + 1),
+                Math.max(1, rowMax - rowMin + 1));
+        }
+
+        private void drawInspectLayer(Graphics2D g2)
+        {
+            SceneDirector.Scene activeScene =
+                (!storyboard.isEmpty() && sceneIndex < storyboard.size())
+                    ? storyboard.get(sceneIndex) : null;
+            double elapsedMs = activeScene == null ? 0.0 :
+                (System.nanoTime() - sceneStartNanos) / 1_000_000.0;
+            double ambientElapsedMs =
+                ((System.nanoTime() - ambientStartNanos) / 1_000_000.0) %
+                SceneDirector.AMBIENT_DURATION_MS;
+            Set<Long> activeActorIds = activeActorIds(activeScene);
+
+            if(activeScene != null) {
+                for(SceneDirector.Vfx vfx : activeScene.vfx) {
+                    if("GRASS_DIM".equals(vfx.kind)) {
+                        drawGrassDim(g2, vfx, elapsedMs);
+                    }
+                }
+            }
+
+            for(SceneDirector.SceneActor actor : ambientActors) {
+                if(!activeActorIds.contains(actor.animalId)) {
+                    drawSceneActor(g2, actor, ambientElapsedMs);
+                }
+            }
+
+            drawEventMarkersScreen(g2);
+
+            if(activeScene != null) {
+                for(SceneDirector.Vfx vfx : activeScene.vfx) {
+                    if("INFECTION_ARC".equals(vfx.kind)) {
+                        drawInfectionArc(g2, vfx, elapsedMs);
+                    }
+                }
+                for(SceneDirector.SceneActor actor : activeScene.actors) {
+                    drawSceneActor(g2, actor, elapsedMs);
+                }
+            }
+        }
+
+        private Set<Long> activeActorIds(SceneDirector.Scene activeScene)
+        {
+            Set<Long> ids = new HashSet<>();
+            if(activeScene != null) {
+                for(SceneDirector.SceneActor actor : activeScene.actors) {
+                    ids.add(actor.animalId);
+                }
+            }
+            return ids;
+        }
+
+        private void drawGrassDim(Graphics2D g2, SceneDirector.Vfx vfx,
+                                  double elapsedMs)
+        {
+            double t = Math.max(0.0, Math.min(1.0,
+                (elapsedMs - vfx.startMs) / Math.max(1.0, vfx.endMs - vfx.startMs)));
+            int sx = screenX(vfx.cellCol);
+            int sy = screenY(vfx.cellRow);
+            int w = (int)Math.ceil(xScale * interactionController.getTransform().getZoom());
+            int h = (int)Math.ceil(yScale * interactionController.getTransform().getZoom());
+            g2.setColor(new Color(30, 26, 12, (int)(90 * t)));
+            g2.fillRect(sx, sy, w, h);
+        }
+
+        private void drawEventMarkersScreen(Graphics2D g2)
+        {
+            Font old = g2.getFont();
+            g2.setFont(old.deriveFont(Font.BOLD, 12.0f));
+            Rectangle viewport = visibleCells();
+            for(SimulationEvent event : lastEvents) {
+                if(event.type == SimulationEvent.EventType.MOVE ||
+                   !viewport.contains(event.col, event.row)) {
+                    continue;
+                }
+                int sx = screenX(event.col) +
+                    (int)Math.round(xScale * interactionController.getTransform().getZoom() / 2.0);
+                int sy = screenY(event.row) +
+                    (int)Math.round(yScale * interactionController.getTransform().getZoom() / 2.0);
+                switch(event.type) {
+                    case HUNT:
+                        g2.setColor(new Color(220, 60, 40, 200));
+                        g2.drawString("X", sx - 4, sy + 5);
+                        break;
+                    case BIRTH:
+                        g2.setColor(new Color(80, 200, 100, 200));
+                        g2.drawString("+", sx - 4, sy + 5);
+                        break;
+                    case DISEASE_DEATH:
+                        g2.setColor(new Color(160, 40, 160, 200));
+                        g2.drawString("!", sx - 3, sy + 5);
+                        break;
+                    case INFECTION:
+                        g2.setColor(new Color(90, 200, 90, 190));
+                        g2.fillOval(sx - 3, sy - 3, 6, 6);
+                        break;
+                    default:
+                        break;
+                }
+            }
+            g2.setFont(old);
+        }
+
+        private void drawSceneActor(Graphics2D g2,
+                                    SceneDirector.SceneActor actor,
+                                    double elapsedMs)
+        {
+            SceneDirector.Keyframe frame = actor.at(elapsedMs);
+            if(frame.alpha <= 0.01) {
+                return;
+            }
+
+            double row = frame.row;
+            double col = frame.col;
+            if(actor.tremble) {
+                double phase = System.nanoTime() / 1.0e8;
+                row += Math.sin(phase) * 0.05;
+                col += Math.cos(phase * 1.3) * 0.05;
+            }
+
+            ViewportTransform transform = interactionController.getTransform();
+            int sx = (int)Math.round(col * xScale * transform.getZoom() +
+                                     transform.getOffsetX());
+            int sy = (int)Math.round(row * yScale * transform.getZoom() +
+                                     transform.getOffsetY());
+            int iconPixels = (int)Math.max(8, Math.min(xScale, yScale) *
+                transform.getZoom() * 1.6 * frame.scale);
+            int drawX = sx - iconPixels / 2;
+            int drawY = sy - iconPixels / 2;
+
+            Composite oldComposite = g2.getComposite();
+            g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                (float)Math.max(0.0, Math.min(1.0, frame.alpha))));
+
+            BufferedImage icon = iconSet.iconFor(actor.species,
+                                                 getColor(actor.species));
+            g2.setColor(new Color(20, 18, 12, 70));
+            g2.fillOval(drawX + 2, drawY + iconPixels - iconPixels / 4,
+                        Math.max(2, iconPixels - 4),
+                        Math.max(2, iconPixels / 4));
+            g2.drawImage(icon, drawX, drawY, iconPixels, iconPixels, null);
+
+            if(frame.filterAlpha > 0.01) {
+                g2.setColor(new Color(90, 140, 60,
+                                      (int)(140 * frame.filterAlpha)));
+                g2.fillOval(drawX, drawY, iconPixels, iconPixels);
+            }
+            if(frame.marker != null) {
+                Font old = g2.getFont();
+                g2.setFont(old.deriveFont(Font.BOLD, 14.0f));
+                g2.setColor(frame.markerColor == null ? Color.white :
+                            frame.markerColor);
+                g2.drawString(frame.marker, sx - 6, sy - iconPixels / 2 - 4);
+                g2.setFont(old);
+            }
+
+            g2.setComposite(oldComposite);
+        }
+
+        private void drawInfectionArc(Graphics2D g2, SceneDirector.Vfx vfx,
+                                      double elapsedMs)
+        {
+            if(elapsedMs < vfx.startMs || elapsedMs > vfx.endMs) {
+                return;
+            }
+            double t = (elapsedMs - vfx.startMs) /
+                       Math.max(1.0, vfx.endMs - vfx.startMs);
+            double fromX = screenX(vfx.fromCol);
+            double fromY = screenY(vfx.fromRow);
+            double toX = screenX(vfx.toCol);
+            double toY = screenY(vfx.toRow);
+            double midX = (fromX + toX) / 2.0;
+            double midY = Math.min(fromY, toY) - 20.0;
+
+            g2.setColor(new Color(90, 200, 90, 210));
+            for(int i = 0; i < 4; i++) {
+                double pt = (t + (double)i / 4.0) % 1.0;
+                double x = quadBezier(fromX, midX, toX, pt);
+                double y = quadBezier(fromY, midY, toY, pt);
+                g2.fillOval((int)Math.round(x) - 3,
+                            (int)Math.round(y) - 3, 6, 6);
+            }
+        }
+
+        private int screenX(double col)
+        {
+            ViewportTransform transform = interactionController.getTransform();
+            return (int)Math.round(col * xScale * transform.getZoom() +
+                                   transform.getOffsetX());
+        }
+
+        private int screenY(double row)
+        {
+            ViewportTransform transform = interactionController.getTransform();
+            return (int)Math.round(row * yScale * transform.getZoom() +
+                                   transform.getOffsetY());
+        }
+
+        private double quadBezier(double p0, double p1, double p2, double t)
+        {
+            double u = 1.0 - t;
+            return u * u * p0 + 2.0 * u * t * p1 + t * t * p2;
         }
 
         private void clearAnimalLayer()

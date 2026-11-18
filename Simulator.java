@@ -10,6 +10,7 @@ public class Simulator
     private static final int DEFAULT_WIDTH = 120;
     private static final int DEFAULT_DEPTH = 80;
 
+    private final SimulationConfig config;
     private Field field;
     private int step;
     private final SimulatorView view;
@@ -39,6 +40,13 @@ public class Simulator
         this(DEFAULT_DEPTH, DEFAULT_WIDTH, showView);
     }
 
+    public Simulator(SimulationConfig config, boolean showView)
+    {
+        this(config == null ? DEFAULT_DEPTH : config.getScaledDepth(),
+             config == null ? DEFAULT_WIDTH : config.getScaledWidth(),
+             showView, config);
+    }
+
     /**
      * Create a simulation field with the given size and a GUI.
      */
@@ -52,6 +60,12 @@ public class Simulator
      */
     public Simulator(int depth, int width, boolean showView)
     {
+        this(depth, width, showView, SimulationConfig.baseline());
+    }
+
+    public Simulator(int depth, int width, boolean showView,
+                     SimulationConfig config)
+    {
         if(width <= 0 || depth <= 0) {
             System.out.println("The dimensions must be >= zero.");
             System.out.println("Using default values.");
@@ -59,8 +73,9 @@ public class Simulator
             width = DEFAULT_WIDTH;
         }
 
+        this.config = config == null ? SimulationConfig.baseline() : config;
         field = new Field(depth, width);
-        context = new SimulationContext(depth, width);
+        context = new SimulationContext(depth, width, this.config);
         view = showView ? new SimulatorView(depth, width) : null;
         pauseLock = new Object();
         recorder = showView
@@ -77,6 +92,16 @@ public class Simulator
                 public void togglePaused()
                 {
                     Simulator.this.togglePaused();
+                }
+
+                public void setPaused(boolean paused)
+                {
+                    Simulator.this.setPaused(paused);
+                }
+
+                public boolean isPaused()
+                {
+                    return Simulator.this.isPaused();
                 }
 
                 public void requestStopAndExit()
@@ -170,7 +195,8 @@ public class Simulator
         exitWhenStopped = false;
         recorderFinished = false;
         Randomizer.reset();
-        context = new SimulationContext(field.getDepth(), field.getWidth());
+        Animal.resetIds();
+        context = new SimulationContext(field.getDepth(), field.getWidth(), config);
         populate();
         context.startStep(step, field);
         if(view != null) {
@@ -184,15 +210,28 @@ public class Simulator
      */
     public void togglePaused()
     {
+        setPaused(!paused);
+    }
+
+    /**
+     * Explicitly pause or resume the visual simulation.
+     */
+    public void setPaused(boolean paused)
+    {
         synchronized(pauseLock) {
-            paused = !paused;
+            this.paused = paused;
             if(view != null) {
-                view.setPaused(paused);
+                view.setPaused(this.paused);
             }
-            if(!paused) {
+            if(!this.paused) {
                 pauseLock.notifyAll();
             }
         }
+    }
+
+    public boolean isPaused()
+    {
+        return paused;
     }
 
     /**
@@ -221,7 +260,8 @@ public class Simulator
         for(int row = 0; row < field.getDepth(); row++) {
             for(int col = 0; col < field.getWidth(); col++) {
                 for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
-                    if(rand.nextDouble() <= factory.getProfile().getCreationProbability()) {
+                    if(rand.nextDouble() <=
+                       config.creationProbability(factory.getProfile())) {
                         Location location = new Location(row, col);
                         field.placeAnimal(factory.create(true, location), location);
                         break;
@@ -307,7 +347,7 @@ public class Simulator
     {
         for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
             int placed = 0;
-            int target = factory.getProfile().getFoundingPopulation();
+            int target = config.foundingPopulation(factory.getProfile());
             while(placed < target) {
                 Location location = randomFreeLocation();
                 if(location == null) {

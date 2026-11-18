@@ -7,6 +7,9 @@
  */
 public abstract class Animal implements Actor
 {
+    private static long nextId = 1L;
+
+    private final long id;
     // Whether the animal is alive or not.
     private boolean alive;
     // The animal's position.
@@ -18,8 +21,19 @@ public abstract class Animal implements Actor
      */
     public Animal(Location location)
     {
+        id = nextId++;
         this.alive = true;
         this.location = location;
+    }
+
+    public static void resetIds()
+    {
+        nextId = 1L;
+    }
+
+    public long getId()
+    {
+        return id;
     }
     
     /**

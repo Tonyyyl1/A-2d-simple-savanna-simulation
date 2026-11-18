@@ -1,4 +1,4 @@
-Project: African Savanna Predator/Prey Simulation
+Project: African Savanna Predator/Prey Simulation v1.3
 
 This project extends the original foxes-and-rabbits handout into a five-species
 African savanna ecosystem.
@@ -41,6 +41,19 @@ Headless test runners:
 
     java SimulationRunner 5000
         Runs a shorter headless stability check.
+
+    java SimulationExperimentRunner smoke
+        Runs a quick map/disease pressure experiment across 2x, 3x, and 4x
+        map scales.
+
+    java SimulationExperimentRunner
+        Runs the full map/disease pressure matrix. This can take much longer
+        because large maps grow grass across many more cells.
+
+    java SimulationExperimentRunner best3x
+        Runs the selected 3x balanced candidate. Latest 5000-step result:
+        Lion=299, Cheetah=213, Zebra=555, Buffalo=609, Gazelle=1014.
+        Final total=2690, density=0.031, balance ratio=4.76.
 
     java StabilityProbe 5000 500
         Runs without the GUI and prints population snapshots every 500 steps.
@@ -118,6 +131,12 @@ Graphics:
     the main grid, so the simulation window stays readable.
     A separate chart window shows population, disease, average stamina,
     average survival, and grass trends.
+
+Viewport controls:
+    The GUI now uses an independent interaction controller. Mouse wheel zooms,
+    mouse drag pans, and the default keyboard controls are WASD for panning,
+    Q to zoom in, and E to zoom out. The controller supports mouse-only,
+    keyboard-only, and hybrid modes for later UI expansion.
 
 Recording:
     The visual simulator records every 100 steps in a separate window. Each line

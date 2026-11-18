@@ -1,3 +1,6 @@
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -5,6 +8,8 @@ import java.util.Map;
  */
 public class SimulationContext
 {
+    private static final int MAX_RECENT_EVENTS = 600;
+
     private final SimulationClock clock;
     private final WeatherSystem weatherSystem;
     private final DiseaseSystem diseaseSystem;
@@ -12,13 +17,23 @@ public class SimulationContext
     private final BreedingSystem breedingSystem;
     private final FoodSystem foodSystem;
     private final TerrainMap terrainMap;
+    private final SimulationConfig config;
     private Map<String, Integer> populationSnapshot;
     private int step;
+    private List<SimulationEvent> currentEvents = new ArrayList<>();
+    private List<SimulationEvent> previousEvents = new ArrayList<>();
+    private final List<SimulationEvent> recentEvents = new ArrayList<>();
 
     public SimulationContext(int depth, int width)
     {
+        this(depth, width, SimulationConfig.baseline());
+    }
+
+    public SimulationContext(int depth, int width, SimulationConfig config)
+    {
         clock = new SimulationClock();
         weatherSystem = new SeasonalWeatherSystem();
+        this.config = config == null ? SimulationConfig.baseline() : config;
         diseaseSystem = new SavannahDiseaseSystem();
         predationSystem = new FoodChainPredationSystem();
         breedingSystem = new MateFindingBreedingSystem();
@@ -29,10 +44,39 @@ public class SimulationContext
     public void startStep(int step, Field field)
     {
         this.step = step;
+        previousEvents = currentEvents;
+        currentEvents = new ArrayList<>();
         clock.setStep(step);
         weatherSystem.update(this);
         foodSystem.grow(this, field);
         populationSnapshot = field.countLivingBySpecies();
+    }
+
+    public void recordEvent(SimulationEvent event)
+    {
+        if(event == null) {
+            return;
+        }
+        currentEvents.add(event);
+        recentEvents.add(event);
+        while(recentEvents.size() > MAX_RECENT_EVENTS) {
+            recentEvents.remove(0);
+        }
+    }
+
+    public List<SimulationEvent> getCurrentEvents()
+    {
+        return Collections.unmodifiableList(currentEvents);
+    }
+
+    public List<SimulationEvent> getPreviousEvents()
+    {
+        return Collections.unmodifiableList(previousEvents);
+    }
+
+    public List<SimulationEvent> getRecentEvents()
+    {
+        return Collections.unmodifiableList(recentEvents);
     }
 
     public int getStep()
@@ -73,6 +117,21 @@ public class SimulationContext
     public TerrainMap getTerrainMap()
     {
         return terrainMap;
+    }
+
+    public SimulationConfig getConfig()
+    {
+        return config;
+    }
+
+    public double getBreedingProbability(SpeciesProfile profile)
+    {
+        return config.breedingProbability(profile);
+    }
+
+    public int getFoundingPopulation(SpeciesProfile profile)
+    {
+        return config.foundingPopulation(profile);
     }
 
     public int getPopulation(String speciesName)
