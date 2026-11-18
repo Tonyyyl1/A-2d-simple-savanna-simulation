@@ -26,6 +26,7 @@ public class SimulationConfig
     private final double diseaseFatalityMultiplier;
     private final long randomSeed;
     private final long terrainSeed;
+    private final boolean thirstEnabled;
 
     public SimulationConfig()
     {
@@ -77,6 +78,29 @@ public class SimulationConfig
                             long randomSeed,
                             long terrainSeed)
     {
+        this(mapScale, creationMultiplier, foundingMultiplier,
+             breedingMultiplier, diseaseTransmissionMultiplier,
+             diseaseFatalityMultiplier, predatorCreationMultiplier,
+             preyCreationMultiplier, predatorFoundingMultiplier,
+             preyFoundingMultiplier, predatorBreedingMultiplier,
+             preyBreedingMultiplier, randomSeed, terrainSeed, false);
+    }
+
+    public SimulationConfig(int mapScale, double creationMultiplier,
+                            double foundingMultiplier,
+                            double breedingMultiplier,
+                            double diseaseTransmissionMultiplier,
+                            double diseaseFatalityMultiplier,
+                            double predatorCreationMultiplier,
+                            double preyCreationMultiplier,
+                            double predatorFoundingMultiplier,
+                            double preyFoundingMultiplier,
+                            double predatorBreedingMultiplier,
+                            double preyBreedingMultiplier,
+                            long randomSeed,
+                            long terrainSeed,
+                            boolean thirstEnabled)
+    {
         this.mapScale = Math.max(1, Math.min(4, mapScale));
         this.creationMultiplier = positiveOrDefault(creationMultiplier);
         this.foundingMultiplier = positiveOrDefault(foundingMultiplier);
@@ -96,6 +120,7 @@ public class SimulationConfig
             positiveOrDefault(diseaseFatalityMultiplier);
         this.randomSeed = randomSeed;
         this.terrainSeed = terrainSeed;
+        this.thirstEnabled = thirstEnabled;
     }
 
     public static SimulationConfig baseline()
@@ -169,6 +194,11 @@ public class SimulationConfig
         return terrainSeed;
     }
 
+    public boolean isThirstEnabled()
+    {
+        return thirstEnabled;
+    }
+
     public double creationProbability(SpeciesProfile profile)
     {
         double category = profile.isPredator() ? predatorCreationMultiplier :
@@ -207,6 +237,7 @@ public class SimulationConfig
                " preyB=" + format(preyBreedingMultiplier) +
                " diseaseTx=" + format(diseaseTransmissionMultiplier) +
                " diseaseFatal=" + format(diseaseFatalityMultiplier) +
+               " thirst=" + (thirstEnabled ? "on" : "off") +
                " randomSeed=" + randomSeed +
                " terrainSeed=" + terrainSeed;
     }
@@ -227,6 +258,7 @@ public class SimulationConfig
         private double preyBreedingMultiplier = 0.55;
         private long randomSeed = DEFAULT_RANDOM_SEED;
         private long terrainSeed = DEFAULT_TERRAIN_SEED;
+        private boolean thirstEnabled = false;
 
         public Builder mapScale(int value) { mapScale = value; return this; }
         public Builder creationMultiplier(double value) { creationMultiplier = value; return this; }
@@ -242,6 +274,7 @@ public class SimulationConfig
         public Builder preyBreedingMultiplier(double value) { preyBreedingMultiplier = value; return this; }
         public Builder randomSeed(long value) { randomSeed = value; return this; }
         public Builder terrainSeed(long value) { terrainSeed = value; return this; }
+        public Builder thirstEnabled(boolean value) { thirstEnabled = value; return this; }
 
         public SimulationConfig build()
         {
@@ -251,7 +284,7 @@ public class SimulationConfig
                 predatorCreationMultiplier, preyCreationMultiplier,
                 predatorFoundingMultiplier, preyFoundingMultiplier,
                 predatorBreedingMultiplier, preyBreedingMultiplier,
-                randomSeed, terrainSeed);
+                randomSeed, terrainSeed, thirstEnabled);
         }
     }
 

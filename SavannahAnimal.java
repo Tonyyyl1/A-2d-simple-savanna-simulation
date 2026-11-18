@@ -7,6 +7,7 @@ import java.util.Random;
 public abstract class SavannahAnimal extends Animal
 {
     public static final double MAX_STAMINA = 100.0;
+    public static final double MAX_HYDRATION = 100.0;
     public static final double STAMINA_MOVE_COST = 0.35;
     public static final double STAMINA_HUNT_COST = 1.20;
     public static final double STAMINA_GRAZE_COST = 0.35;
@@ -21,6 +22,8 @@ public abstract class SavannahAnimal extends Animal
     private int foodLevel;
     private int starvingSteps;
     private double stamina;
+    private double hydration;
+    private int dehydrationSteps;
     private int dailyRestHours;
     private boolean infected;
     private double infectionLevel;
@@ -41,6 +44,7 @@ public abstract class SavannahAnimal extends Animal
             age = rand.nextInt(profile.getMaxAge());
             foodLevel = 1 + rand.nextInt(Math.max(1, profile.getMaxFoodLevel()));
             stamina = 55.0 + rand.nextDouble() * 45.0;
+            hydration = 85.0;
             infected = rand.nextDouble() < 0.018;
             infectionLevel = infected ? 0.18 + rand.nextDouble() * 0.24 : 0.0;
         }
@@ -48,10 +52,12 @@ public abstract class SavannahAnimal extends Animal
             age = 0;
             foodLevel = profile.getMaxFoodLevel();
             stamina = MAX_STAMINA;
+            hydration = MAX_HYDRATION;
             infected = false;
             infectionLevel = 0.0;
         }
         starvingSteps = foodLevel <= 0 ? 1 : 0;
+        dehydrationSteps = 0;
         dailyRestHours = 0;
     }
 
@@ -78,19 +84,39 @@ public abstract class SavannahAnimal extends Animal
             return;
         }
         useEnergy(context);
+        if(context.isThirstEnabled()) {
+            context.getThirstSystem().applyThirst(this, context);
+            if(!isAlive()) {
+                return;
+            }
+        }
 
         if(isAlive()) {
             List<Location> freeLocations = TerrainNavigator.freeAdjacent(
                 nextFieldState, context.getTerrainMap(), getLocation(),
                 context.getRandom());
             sortByHabitatPreference(freeLocations, context);
+            boolean drinkingNow = false;
+            Location thirstDestination = null;
+            if(context.isThirstEnabled() &&
+               context.getThirstSystem().needsWater(this)) {
+                drinkingNow = context.getThirstSystem().tryDrink(this, context);
+                if(!drinkingNow) {
+                    thirstDestination =
+                        context.getThirstSystem().stepTowardWater(this,
+                                                                  freeLocations);
+                }
+            }
             if(!freeLocations.isEmpty() && !isSurvivalCritical()) {
                 context.getBreedingSystem().tryBreed(this, currentField, nextFieldState,
                                                      context, freeLocations);
             }
 
             Location nextLocation = null;
-            if(isActive(context)) {
+            if(thirstDestination != null) {
+                nextLocation = thirstDestination;
+            }
+            else if(isActive(context) && !drinkingNow) {
                 if(profile.isPredator()) {
                     nextLocation = context.getPredationSystem().hunt(this, currentField, context);
                 }
@@ -111,6 +137,10 @@ public abstract class SavannahAnimal extends Animal
             }
 
             placeInNextField(nextFieldState, nextLocation, freeLocations, context);
+            if(context.isThirstEnabled() &&
+               context.getThirstSystem().needsWater(this)) {
+                context.getThirstSystem().tryDrink(this, context);
+            }
         }
     }
 
@@ -175,6 +205,21 @@ public abstract class SavannahAnimal extends Animal
     public double getStaminaPercent()
     {
         return stamina;
+    }
+
+    public double getHydrationPercent()
+    {
+        return hydration;
+    }
+
+    public boolean isThirsty()
+    {
+        return hydration < 35.0;
+    }
+
+    public int getDehydrationSteps()
+    {
+        return dehydrationSteps;
     }
 
     /**
@@ -267,6 +312,28 @@ public abstract class SavannahAnimal extends Animal
             cost *= 1.18;
         }
         stamina = clamp(stamina - cost, 0.0, MAX_STAMINA);
+    }
+
+    public void drainHydration(double amount)
+    {
+        hydration = clamp(hydration - Math.max(0.0, amount), 0.0,
+                          MAX_HYDRATION);
+    }
+
+    public void rehydrate()
+    {
+        hydration = MAX_HYDRATION;
+        dehydrationSteps = 0;
+    }
+
+    public void addDehydrationStep()
+    {
+        dehydrationSteps++;
+    }
+
+    public void dehydrateOneFood()
+    {
+        foodLevel = Math.max(0, foodLevel - 1);
     }
 
     /**
@@ -370,6 +437,7 @@ public abstract class SavannahAnimal extends Animal
                ", foodLevel=" + foodLevel +
                ", survival=" + (int)Math.round(getSurvivalPercent()) +
                ", stamina=" + (int)Math.round(stamina) +
+               ", hydration=" + (int)Math.round(hydration) +
                '}';
     }
 

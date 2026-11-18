@@ -3,10 +3,32 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
-## [Unreleased] - v1.4 3x Startup, Water Safety, And Habitat Tuning
+## [1.5] - Shared Renderer, Enhanced Status Dialog, And Thirst Experiment
 
 ### Added
 
+- Added `FieldRenderer` as the shared ordinary-animal marker renderer for the
+  live view and future snapshot/render tools. It uses the existing
+  `VisualGridGeometry` and `VisualFootprint` path for predator/herbivore
+  markers, disease dots, survival rings, stamina bars, and thirst drops.
+- Added optional `ThirstSystem` / `SavannahThirstSystem` support. The feature
+  is disabled by default, drains hydration only when enabled, records `DRINK`
+  events, and lets animals drink from passable shoreline cells while
+  `WATERHOLE` remains impassable.
+- Added `SimulationConfig.Builder.thirstEnabled(boolean)` and
+  `SimulationConfig.isThirstEnabled()`.
+- Added an `Experimental thirst system` checkbox to `StartupConfigDialog`,
+  defaulting to off and resetting to off.
+- Added hydration and thirst-system rows to `AnimalStatusLog.rowsFor()` and a
+  summary panel to the dialog UI.
+- Added `README.zh.md` with the implementation plan, design boundaries, and
+  verification notes for the shared renderer, enhanced status dialog, and
+  thirst experiment.
+- Added `releases/<tag>/` packaging with a runnable jar, matching source zip,
+  and `MANIFEST.txt` for build and verification status.
+- Added multi-panel-size ordinary-marker water auditing to `WaterSafetyProbe`,
+  including non-integer grid scales such as `1387x829`, `1093x731`, and
+  `640x480`.
 - Added `SimulationConfig.default3x()` as the normal default configuration,
   including default random seed `1111` and terrain seed `20260629`.
 - Added `StartupConfigDialog` so visual runs start with an initialization
@@ -56,6 +78,23 @@ documented here.
 
 ### Changed
 
+- `SimulatorView.FieldView` now delegates ordinary animal marker drawing to
+  `FieldRenderer`; it still owns Swing image layers, viewport transforms,
+  heatmap drawing, inspect actors, and overlays.
+- `SimulationContext` now creates `SavannahThirstSystem` only when the active
+  config enables it. Default runs keep `thirst=off`.
+- `SavannahAnimal` now stores hydration state without consuming additional
+  random numbers, preserving the existing default-off ecological random stream.
+- `SimulationConfig.describe()` now includes `thirst=on/off`.
+- Ecological randomness is now owned by `SimulationContext.getRandom()` and
+  injected through simulator population, animal construction, weather, disease,
+  food, predation, breeding, and terrain-aware candidate shuffling. Compatibility
+  constructors remain for older tests, but production simulation paths use the
+  context random stream.
+- `package.sh` now requires an explicit version tag and builds from a clean
+  temporary directory before writing release artifacts to `releases/<tag>/`.
+- `verify-jar.sh` now validates the packaged jar itself and appends the result
+  to the release manifest.
 - The no-argument and visual simulator defaults now use the 3x
   `target3xBalanced` configuration instead of the old 1x baseline.
 - `SimulationContext` now builds terrain from the configured terrain seed.
@@ -103,17 +142,24 @@ documented here.
 
 ### Test Coverage
 
-- `javac *.java`
-- `java AllTests`
-  - Latest recorded result: `115/115` tests passed in `35429 ms`.
-- `javac -d /private/tmp/savanna-v14-build *.java`
-- `java -cp /private/tmp/savanna-v14-build AllTests`
-  - Latest recorded result: `115/115` tests passed in `33168 ms`.
-- `java -cp /private/tmp/savanna-v14-build AllTests full`
-  - Latest recorded result: `118/118` tests passed in `415434 ms`.
+- `./test.sh`
+  - Latest recorded result: `180/180` tests passed.
 - `java WaterSafetyProbe 1000 100`
   - Passed with `water animals == 0`, `ordinary visual water samples == 0`,
-    and `visual water samples == 0` at step 0 and every 100 steps to 1000.
+    and `visual water samples == 0` at every checkpoint.
+- `java SimulationRunner 5000`
+  - Default `thirst=off` output matches the pre-thirst baseline ecology except
+    for the expected configuration-summary addition and `Elapsed ms` timing
+    line. Final result: `Pop=2643`, `{Lion=358, Cheetah=109, Zebra=618,
+    Buffalo=512, Gazelle=1046}`, final balance ratio `9.60`.
+- `javac *.java`
+  - Passed after the shared renderer and thirst-system changes.
+- `./package.sh v1.5-renderer-status-thirst`
+  - Generated runnable jar, matching source zip, and `MANIFEST.txt` under
+    `releases/v1.5-renderer-status-thirst/`.
+- `./verify-jar.sh v1.5-renderer-status-thirst`
+  - Packaged jar passed `AllTests 180/180`, `WaterSafetyProbe 1000 100`, and
+    `WaterSafetyProbe 18500 500`.
 - `java WaterSafetyProbe 1000 100 baseline`
   - Passed with `water animals == 0` at step 0 and every 100 steps to 1000.
 - `java WaterSafetyProbe 5000 500`

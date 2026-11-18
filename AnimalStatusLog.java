@@ -1,7 +1,9 @@
 import java.awt.BorderLayout;
 import java.awt.Frame;
+import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
@@ -27,9 +29,7 @@ public class AnimalStatusLog
             "Animal Status Log / 动物状态日志", false);
         dialog.setLayout(new BorderLayout(8, 8));
 
-        JLabel title = new JLabel(" " + animal.getProfile().getName() +
-            " #" + animal.getId() + " / 动物状态");
-        dialog.add(title, BorderLayout.NORTH);
+        dialog.add(summaryPanel(animal, context), BorderLayout.NORTH);
 
         DefaultTableModel model = new DefaultTableModel(
             rowsFor(animal, context, field),
@@ -49,9 +49,44 @@ public class AnimalStatusLog
         buttons.add(close);
         dialog.add(buttons, BorderLayout.SOUTH);
 
-        dialog.setSize(640, 460);
+        dialog.setSize(720, 560);
         dialog.setLocationRelativeTo(parent);
         dialog.setVisible(true);
+    }
+
+    private static JPanel summaryPanel(SavannahAnimal animal,
+                                       SimulationContext context)
+    {
+        JPanel panel = new JPanel(new BorderLayout(8, 6));
+        panel.setBorder(BorderFactory.createEmptyBorder(8, 10, 0, 10));
+        JLabel title = new JLabel(animal.getProfile().getName() +
+            " #" + animal.getId() + " / 动物状态");
+        panel.add(title, BorderLayout.NORTH);
+
+        JPanel metrics = new JPanel(new GridLayout(2, 3, 8, 4));
+        addSummary(metrics, "Food / 食物",
+            animal.getFoodLevel() + "/" + animal.getProfile().getMaxFoodLevel());
+        addSummary(metrics, "Survival / 生存",
+            percent(animal.getSurvivalPercent()));
+        addSummary(metrics, "Stamina / 体力",
+            percent(animal.getStaminaPercent()));
+        addSummary(metrics, "Hydration / 水分",
+            hydrationText(animal, context));
+        addSummary(metrics, "Disease / 疾病",
+            animal.isInfected() ? "Infected / 感染" : "Healthy / 健康");
+        addSummary(metrics, "Risk / 风险", riskText(animal));
+        panel.add(metrics, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private static void addSummary(JPanel panel, String label, String value)
+    {
+        JLabel item = new JLabel("<html><b>" + label + "</b><br>" +
+            value + "</html>");
+        item.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new java.awt.Color(210, 205, 194)),
+            BorderFactory.createEmptyBorder(5, 7, 5, 7)));
+        panel.add(item);
     }
 
     public static String[][] rowsFor(SavannahAnimal animal,
@@ -90,6 +125,10 @@ public class AnimalStatusLog
         add(rows, "Stamina stage / 体力阶段",
             animal.getStaminaStage() + " / " +
             staminaChinese(animal.getStaminaStage()));
+        add(rows, "Hydration / 水分", hydrationText(animal, context));
+        add(rows, "Thirst system / 口渴系统",
+            context != null && context.isThirstEnabled()
+                ? "Enabled / 已启用" : "Disabled / 未启用");
         add(rows, "Disease / 疾病", diseaseText(animal));
         add(rows, "Active now / 当前活跃", activeText(animal, context));
         add(rows, "Weather / 天气", weatherText(context));
@@ -140,6 +179,19 @@ public class AnimalStatusLog
             percent(animal.getInfectionLevel() * 100.0) +
             ", resistance " + percent(animal.getDiseaseResistance() * 100.0) +
             " / 感染程度，抵抗力";
+    }
+
+    private static String hydrationText(SavannahAnimal animal,
+                                        SimulationContext context)
+    {
+        if(context == null || !context.isThirstEnabled()) {
+            return "Disabled / 未启用";
+        }
+        String value = percent(animal.getHydrationPercent());
+        if(animal.isThirsty()) {
+            value += " - thirsty / 口渴";
+        }
+        return value;
     }
 
     private static String activeText(SavannahAnimal animal,
@@ -219,6 +271,9 @@ public class AnimalStatusLog
         }
         if(animal.getStaminaStage() == StaminaStage.LOW) {
             notes.add("low stamina / 体力偏低");
+        }
+        if(animal.isThirsty()) {
+            notes.add("low hydration / 水分偏低");
         }
         if(animal.isInfected()) {
             notes.add("disease / 疾病风险");
@@ -302,6 +357,7 @@ public class AnimalStatusLog
             case RECOVERY:      return "康复";
             case DISEASE_DEATH: return "病死";
             case MOVE:          return "移动";
+            case DRINK:         return "饮水";
             default:            return "事件";
         }
     }

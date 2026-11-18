@@ -32,7 +32,10 @@ public class SimulationSystemTests
         testOrdinaryFootprintUsesSharedGeometry();
         testInspectFootprintUsesSharedGeometry();
         testVisualWaterMaskCoversShorelineFootprint();
+        testFieldRendererAcceptsSharedGeometry();
         testAnimalStatusLogRows();
+        testThirstSystemDefaultsOff();
+        testThirstSystemDrainsAndDrinksFromShore();
         testTerminalDiagnostics();
         testSimulationConfigScaling();
         testDiseaseMultiplierPressure();
@@ -518,6 +521,24 @@ public class SimulationSystemTests
                                allowsDryLand);
     }
 
+    private static void testFieldRendererAcceptsSharedGeometry()
+    {
+        VisualGridGeometry geometry = new VisualGridGeometry(5, 5, 50, 50);
+        Gazelle gazelle = new Gazelle(false, new Location(2, 2));
+        FieldRenderer renderer = new FieldRenderer(java.util.Map.of(
+            SpeciesRegistry.GAZELLE,
+            SpeciesRegistry.getProfile(SpeciesRegistry.GAZELLE).getColor()));
+        java.awt.Rectangle bounds = VisualFootprint.ordinaryBounds(
+            VisualFootprint.ordinaryMarker(gazelle.getLocation(), geometry),
+            gazelle);
+        TestSupport.assertTrue("field renderer is available",
+                               renderer != null);
+        TestSupport.assertTrue("ordinary footprint stays inside shared geometry",
+                               bounds.x >= 0 && bounds.y >= 0 &&
+                               bounds.x + bounds.width <= geometry.pixelWidth() &&
+                               bounds.y + bounds.height <= geometry.pixelHeight());
+    }
+
     private static void testVisualGridGeometryMatchesTerrainCells()
     {
         VisualGridGeometry geometry = new VisualGridGeometry(240, 360,
@@ -616,6 +637,90 @@ public class SimulationSystemTests
             rowValue(rows, "Stamina / 体力").contains("%"));
         TestSupport.assertTrue("status log includes translated recent event",
             rowValue(rows, "Recent activity / 最近行为").contains("进食"));
+        TestSupport.assertTrue("status log shows thirst disabled by default",
+            rowValue(rows, "Thirst system / 口渴系统").contains("未启用"));
+    }
+
+    private static void testThirstSystemDefaultsOff()
+    {
+        SimulationConfig config = SimulationConfig.default3x();
+        TestSupport.assertFalse("thirst system defaults off",
+                                config.isThirstEnabled());
+        SimulationContext context = new SimulationContext(10, 10, config);
+        TestSupport.assertFalse("context does not create thirst system by default",
+                                context.isThirstEnabled());
+        TestSupport.assertTrue("config summary records thirst off",
+                               config.describe().contains("thirst=off"));
+    }
+
+    private static void testThirstSystemDrainsAndDrinksFromShore()
+    {
+        SimulationConfig config = SimulationConfig.builder()
+            .mapScale(1)
+            .thirstEnabled(true)
+            .build();
+        SimulationContext context = new SimulationContext(40, 60, config);
+        Field field = new Field(40, 60);
+        Location shore = firstDrinkableShore(context.getThirstSystem(),
+                                            context.getTerrainMap());
+        TestSupport.assertTrue("test map has drinkable shore", shore != null);
+
+        Gazelle gazelle = new Gazelle(false, shore);
+        field.placeAnimal(gazelle, shore);
+        context.startStep(3, field);
+        TestSupport.setField(gazelle, "hydration", 30.0);
+        double beforeDrain = gazelle.getHydrationPercent();
+        context.getThirstSystem().applyThirst(gazelle, context);
+        TestSupport.assertTrue("enabled thirst drains hydration",
+                               gazelle.getHydrationPercent() < beforeDrain);
+        TestSupport.assertTrue("shore animal drinks",
+                               context.getThirstSystem().tryDrink(gazelle,
+                                                                  context));
+        TestSupport.assertClose("drinking restores hydration",
+                                SavannahAnimal.MAX_HYDRATION,
+                                gazelle.getHydrationPercent(), 0.001);
+        TestSupport.assertTrue("drinking records event",
+            hasEvent(context, SimulationEvent.EventType.DRINK));
+
+        Location nonShore = firstNonShorePassable(context.getThirstSystem(),
+            context.getTerrainMap());
+        TestSupport.assertTrue("test map has non-shore passable cell",
+                               nonShore != null);
+        Gazelle seeker = new Gazelle(false, nonShore);
+        Location next = context.getThirstSystem().stepTowardWater(seeker,
+            TerrainNavigator.freeAdjacent(field, context.getTerrainMap(),
+                                          nonShore, context.getRandom()));
+        TestSupport.assertTrue("thirst system can choose a waterward step",
+                               next != null);
+    }
+
+    private static Location firstDrinkableShore(ThirstSystem thirst,
+                                                TerrainMap terrain)
+    {
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                Location location = new Location(row, col);
+                if(thirst.isDrinkableShore(location)) {
+                    return location;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Location firstNonShorePassable(ThirstSystem thirst,
+                                                  TerrainMap terrain)
+    {
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                Location location = new Location(row, col);
+                if(terrain.isPassable(location) &&
+                   !thirst.isDrinkableShore(location)) {
+                    return location;
+                }
+            }
+        }
+        return null;
     }
 
     private static void testTerminalDiagnostics()

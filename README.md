@@ -1,6 +1,6 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.1**
+Version: **1.5**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -10,7 +10,22 @@ test suite.
 
 ## Version Highlights
 
-- **Unreleased / Phase 1**: added an independent 2.5D savanna terrain
+- **1.5 / shared renderer + status dialog + thirst experiment**:
+  ordinary animal marker rendering now goes through shared `FieldRenderer`,
+  keeping live view and future snapshot tools on the same `VisualGridGeometry`
+  / `VisualFootprint` path. Inspect clicks open an enhanced bilingual
+  `AnimalStatusLog` with a summary panel, hydration rows, and recent activity
+  data. An experimental thirst/drinking system is wired through
+  `SimulationConfig` and `StartupConfigDialog`, but remains **off by default**;
+  when enabled, animals drink from passable shoreline cells rather than entering
+  `WATERHOLE`.
+- **1.4 / context RNG + water probe**: ecological randomness now
+  belongs to each `SimulationContext`, so simulator runs no longer depend on a
+  shared global random stream. `WaterSafetyProbe` audits ordinary marker
+  footprints across multiple panel sizes, including non-integer grid scales.
+  Release builds now ship as `releases/<tag>/` with a jar, matching source zip,
+  and `MANIFEST.txt`.
+- **Earlier Phase 1 / terrain and feedback**: added an independent 2.5D savanna terrain
   background layer and clearer simulation feedback. The map has a deterministic
   waterhole, grassland belt, bush bands, open plain, dry soil, and a seasonal
   lowland corridor. The GUI now separates terrain, animal symbols, weather/time
@@ -65,6 +80,14 @@ See [CHANGELOG.md](CHANGELOG.md) for the full version history.
   zoom in, and `E` zoom out.
 - No-dependency test suite with unit, system, and integration checks.
 - Headless long-run stability validation.
+- Per-run ecological random stream via `SimulationContext.getRandom()`, while
+  fixed visual random sources remain separate from simulation behaviour.
+- Shared ordinary animal marker renderer via `FieldRenderer`, reusing
+  `VisualGridGeometry` and `VisualFootprint`.
+- Enhanced bilingual animal status dialog with summary metrics, hydration, and
+  thirst-system state.
+- Optional experimental thirst/drinking system, disabled by default and
+  configurable from the startup dialog.
 
 ## Time Model
 
@@ -99,7 +122,9 @@ use triangular markers, herbivores use circular markers, infected animals keep
 red disease dots, critical-survival animals get an orange ring, and low-stamina
 animals get a small stamina bar. Population aggregation is still used only for
 sampling dense ordinary animals; it no longer paints large pressure blocks on
-the map.
+the map. Ordinary marker drawing now lives in `FieldRenderer`, while
+`SimulatorView` keeps ownership of Swing layers, viewport transforms, heatmaps,
+inspect actors, and overlays.
 
 The visual layer also applies weather and time-of-day tinting. A compact
 on-map metric panel shows grass, disease, survival, stamina, active signals,
@@ -113,8 +138,11 @@ predator/prey pressure, grass, disease, average stamina, average survival,
 low-survival count, low-stamina count, starving count, trend changes since the
 previous line, a short event readout, and high-level signals.
 
-For now, grass growth, movement, disease, predation, and breeding do not read
-terrain modifiers. That is reserved for a later phase.
+The optional thirst experiment is deliberately conservative and disabled by
+default. When enabled, animals lose hydration over time, lose more in drought,
+lose less in rain, seek passable shoreline cells when thirsty, and record
+`DRINK` events when they drink. The waterhole terrain itself remains
+impassable.
 
 ## Quick Start
 
@@ -178,7 +206,7 @@ This runs:
 Latest recorded result:
 
 ```text
-Passed 80/80 tests in 6022 ms
+Passed 180/180 tests in 43830 ms
 ```
 
 Run the full daily test suite:
@@ -189,10 +217,25 @@ java AllTests full
 
 This adds a `5000` step headless stability test.
 
+Current note:
+
+```text
+Run after large tuning or behaviour changes; the current default gate is ./test.sh.
+```
+
+Run the current water-footprint audit:
+
+```bash
+java WaterSafetyProbe 1000 100
+```
+
 Latest recorded result:
 
 ```text
-Passed 50/50 tests in 34205 ms
+water animals == 0
+ordinary visual water samples == 0
+visual water samples == 0
+Water safety probe passed through step 1000
 ```
 
 Run the final long stability validation:
@@ -219,11 +262,11 @@ Run the selected balanced 3x candidate:
 java SimulationExperimentRunner best3x
 ```
 
-Latest selected 3x result after `5000` steps:
+Latest default `java SimulationRunner 5000` result:
 
 ```text
-Lion=299, Cheetah=213, Zebra=555, Buffalo=609, Gazelle=1014
-Final total=2690, density=0.031, balance ratio=4.76
+Lion=358, Cheetah=109, Zebra=618, Buffalo=512, Gazelle=1046
+Final total=2643, final balance ratio=9.60, thirst=off
 ```
 
 Previous validated result:
@@ -294,6 +337,7 @@ implementation classes:
 - `BreedingSystem` / `MateFindingBreedingSystem`
 - `SimulationRecorder` / `StepReportRecorder`
 - `SimulationEventListener` / `EventAccumulator`
+- `ThirstSystem` / `SavannahThirstSystem` (experimental, disabled by default)
 
 Species parameters are centralised in `SpeciesRegistry` and `SpeciesProfile`.
 Shared animal behaviour is implemented in `SavannahAnimal`.
@@ -306,6 +350,9 @@ The visual window includes a `Heatmap / 热力图` toggle and event-type selecto
 the overlay is drawn from accumulated whole-run events, not the 600-event
 recent window.
 
+The default visual startup dialog includes an `Experimental thirst system`
+checkbox. It is unchecked by default, and reset returns it to off.
+
 ## Important Files
 
 - `VisualSimulationRunner.java`: starts the GUI simulation.
@@ -313,6 +360,9 @@ recent window.
 - `AllTests.java`: runs the no-dependency test suite.
 - `Simulator.java`: main simulation loop.
 - `SimulatorView.java`: visual grid window.
+- `FieldRenderer.java`: shared ordinary animal marker renderer.
+- `ThirstSystem.java` / `SavannahThirstSystem.java`: optional shoreline
+  drinking and hydration behaviour.
 - `SimulationChartWindow.java`: live chart display.
 - `StepReportRecorder.java`: interval recording and HTML report generation.
 - `EventAccumulator.java`: whole-run event counts for heat maps and summaries.
@@ -321,14 +371,23 @@ recent window.
 - `SpeciesRegistry.java`: species configuration.
 - `SavannahAnimal.java`: shared animal behaviour.
 - `CHANGELOG.md`: version history.
+- `README.zh.md`: Chinese implementation plan and delivery notes for the
+  shared renderer, enhanced status dialog, and thirst experiment.
 - `TUNING_EFFICIENCY.md`: tuning workflow and timing evidence.
 - `UPDATE_NOTES.md`: concise update summary.
 
 ## Deliverables
 
-- `savanna-simulation.jar`: runnable visual simulation.
-- `savanna-simulation-source.zip`: source package for GitHub or review.
-- `savanna-simulation-project.zip`: BlueJ project package.
+New releases are written to `releases/<version-tag>/`:
+
+- `savanna-simulation-<version-tag>.jar`: runnable visual simulation.
+- `savanna-simulation-<version-tag>-source.zip`: source snapshot matching that
+  jar build.
+- `MANIFEST.txt`: build date, main class, source snapshot, and jar verification
+  status.
+
+The older `outputs/` folder remains as historical evidence from previous
+delivery rounds, but new jar releases should use `releases/<version-tag>/`.
 
 ## Notes
 

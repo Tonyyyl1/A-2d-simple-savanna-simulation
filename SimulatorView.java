@@ -57,6 +57,7 @@ public class SimulatorView extends JFrame
     private final FieldStats stats;
     private final ViewInteractionController interactionController;
     private final AnimalIconSet iconSet;
+    private final FieldRenderer fieldRenderer;
     private SimulationControlHandler controlHandler;
     private SimulationDiagnostics.DiagnosticSnapshot previousSnapshot;
     private Field lastField;
@@ -88,6 +89,7 @@ public class SimulatorView extends JFrame
         for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
             setColor(factory.getProfile().getName(), factory.getProfile().getColor());
         }
+        fieldRenderer = new FieldRenderer(colors);
 
         setTitle("African Savanna Simulation" +
                  (configSummary == null || configSummary.isEmpty()
@@ -106,7 +108,8 @@ public class SimulatorView extends JFrame
             "Birth / 出生",
             "Infection / 感染",
             "Recovery / 康复",
-            "Disease death / 病亡"
+            "Disease death / 病亡",
+            "Drink / 饮水"
         });
 
         setLocation(100, 50);
@@ -322,6 +325,7 @@ public class SimulatorView extends JFrame
             case 5: return SimulationEvent.EventType.INFECTION;
             case 6: return SimulationEvent.EventType.RECOVERY;
             case 7: return SimulationEvent.EventType.DISEASE_DEATH;
+            case 8: return SimulationEvent.EventType.DRINK;
             default: return null;
         }
     }
@@ -476,6 +480,7 @@ public class SimulatorView extends JFrame
         panel.add(new JLabel("Herbivore", new HerbivoreIcon(), JLabel.LEFT));
         panel.add(new JLabel("Survival pressure", new SurvivalIcon(), JLabel.LEFT));
         panel.add(new JLabel("Low stamina", new StaminaIcon(), JLabel.LEFT));
+        panel.add(new JLabel("Thirst", new ThirstIcon(), JLabel.LEFT));
         return panel;
     }
 
@@ -649,66 +654,13 @@ public class SimulatorView extends JFrame
 
         public void drawMark(int x, int y, Color color)
         {
-            Rectangle cell = geometry.cellBounds(y, x);
-            animalGraphics.setColor(color);
-            animalGraphics.fillRect(cell.x, cell.y,
-                                    Math.max(1, cell.width - 1),
-                                    Math.max(1, cell.height - 1));
+            fieldRenderer.drawUnknownMark(animalGraphics, y, x, geometry);
         }
 
         public void drawAnimal(int x, int y, SavannahAnimal animal)
         {
-            VisualFootprint.OrdinaryMarker marker =
-                VisualFootprint.ordinaryMarker(new Location(y, x), geometry);
-            int left = marker.left;
-            int top = marker.top;
-            int cellWidth = marker.cellWidth;
-            int cellHeight = marker.cellHeight;
-            int symbolSize = marker.symbolSize;
-            int symbolLeft = marker.symbolLeft;
-            int symbolTop = marker.symbolTop;
-            Color color = getColor(animal.getProfile().getName());
-
-            animalGraphics.setColor(new Color(20, 18, 12, 60));
-            animalGraphics.fillOval(symbolLeft + 1, symbolTop + 2,
-                                    symbolSize, Math.max(2, symbolSize / 2));
-            animalGraphics.setColor(color);
-            if(animal.getProfile().isPredator()) {
-                Polygon triangle = new Polygon();
-                triangle.addPoint(symbolLeft + symbolSize / 2, symbolTop);
-                triangle.addPoint(symbolLeft, symbolTop + symbolSize);
-                triangle.addPoint(symbolLeft + symbolSize, symbolTop + symbolSize);
-                animalGraphics.fillPolygon(triangle);
-                animalGraphics.setColor(new Color(25, 25, 25, 120));
-                animalGraphics.drawPolygon(triangle);
-            }
-            else {
-                animalGraphics.fillOval(symbolLeft, symbolTop, symbolSize, symbolSize);
-                animalGraphics.setColor(new Color(25, 25, 25, 115));
-                animalGraphics.drawOval(symbolLeft, symbolTop, symbolSize, symbolSize);
-            }
-
-            if(animal.isSurvivalCritical()) {
-                animalGraphics.setColor(new Color(255, 145, 42, 210));
-                animalGraphics.drawOval(symbolLeft - 1, symbolTop - 1,
-                                        symbolSize + 2, symbolSize + 2);
-            }
-
-            if(animal.getStaminaStage() == StaminaStage.LOW && cellHeight >= 5) {
-                int barWidth = Math.max(2, (int)Math.round(cellWidth *
-                    (animal.getStaminaPercent() / 100.0)));
-                animalGraphics.setColor(new Color(35, 35, 35, 120));
-                animalGraphics.fillRect(left, top + cellHeight - 2, cellWidth, 2);
-                animalGraphics.setColor(new Color(245, 211, 76, 230));
-                animalGraphics.fillRect(left, top + cellHeight - 2, barWidth, 2);
-            }
-
-            if(animal.isInfected()) {
-                animalGraphics.setColor(INFECTED_COLOR);
-                int dotSize = Math.max(2, symbolSize / 3);
-                animalGraphics.fillOval(symbolLeft + symbolSize - dotSize,
-                                        symbolTop, dotSize, dotSize);
-            }
+            fieldRenderer.drawAnimal(animalGraphics, new Location(y, x),
+                                     animal, geometry);
         }
 
         private int aggregateRow(int row)
@@ -1498,6 +1450,28 @@ public class SimulatorView extends JFrame
             graphics.fillRect(x + 1, y + 9, 7, 3);
             graphics.setColor(Color.darkGray);
             graphics.drawRect(x + 1, y + 9, 12, 3);
+        }
+    }
+
+    private static class ThirstIcon implements Icon
+    {
+        public int getIconWidth()
+        {
+            return 14;
+        }
+
+        public int getIconHeight()
+        {
+            return 14;
+        }
+
+        public void paintIcon(java.awt.Component component, Graphics graphics,
+                              int x, int y)
+        {
+            graphics.setColor(new Color(43, 136, 210));
+            graphics.fillOval(x + 4, y + 2, 6, 9);
+            graphics.setColor(Color.darkGray);
+            graphics.drawOval(x + 4, y + 2, 6, 9);
         }
     }
 

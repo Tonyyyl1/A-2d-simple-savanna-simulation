@@ -19,6 +19,7 @@ public class SimulationContext
     private final BreedingSystem breedingSystem;
     private final FoodSystem foodSystem;
     private final TerrainMap terrainMap;
+    private final ThirstSystem thirstSystem;
     private final SimulationConfig config;
     private Map<String, Integer> populationSnapshot;
     private int step;
@@ -44,6 +45,8 @@ public class SimulationContext
         breedingSystem = new MateFindingBreedingSystem(random);
         foodSystem = new GrasslandFoodSystem(depth, width, random);
         terrainMap = new TerrainMap(depth, width, this.config.getTerrainSeed());
+        thirstSystem = this.config.isThirstEnabled()
+            ? new SavannahThirstSystem(terrainMap) : null;
     }
 
     public void startStep(int step, Field field)
@@ -139,6 +142,16 @@ public class SimulationContext
         return foodSystem;
     }
 
+    public ThirstSystem getThirstSystem()
+    {
+        return thirstSystem;
+    }
+
+    public boolean isThirstEnabled()
+    {
+        return thirstSystem != null;
+    }
+
     public TerrainMap getTerrainMap()
     {
         return terrainMap;
@@ -172,6 +185,7 @@ public class SimulationContext
         return "Weather: " + weatherSystem.getDisplayText() +
                " | " + clock.getDisplayText() +
                " | Grass: " + grassPercent + "%" +
-               " | Diseased: " + infected;
+               " | Diseased: " + infected +
+               " | Thirst: " + (isThirstEnabled() ? "on" : "off");
     }
 }

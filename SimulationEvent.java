@@ -14,7 +14,8 @@ public class SimulationEvent
         INFECTION,
         RECOVERY,
         DISEASE_DEATH,
-        MOVE
+        MOVE,
+        DRINK
     }
 
     public final EventType type;
@@ -119,6 +120,14 @@ public class SimulationEvent
     {
         return new SimulationEvent(EventType.MOVE, step,
             to.row(), to.col(), from.row(), from.col(),
+            animal.getId(), -1L, animal.getProfile().getName(), "");
+    }
+
+    public static SimulationEvent drink(int step, SavannahAnimal animal,
+                                        Location location)
+    {
+        return new SimulationEvent(EventType.DRINK, step,
+            location.row(), location.col(), -1, -1,
             animal.getId(), -1L, animal.getProfile().getName(), "");
     }
 }

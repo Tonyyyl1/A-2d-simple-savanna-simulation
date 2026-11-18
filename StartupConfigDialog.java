@@ -3,6 +3,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -50,6 +51,8 @@ public class StartupConfigDialog
         row = addField(form, row, "Prey breeding", fields.preyBreeding);
         row = addField(form, row, "Disease transmission", fields.diseaseTx);
         row = addField(form, row, "Disease fatality", fields.diseaseFatal);
+        row = addCheckBox(form, row, "Experimental thirst system",
+                          fields.thirstEnabled);
         row = addField(form, row, "Random seed", fields.randomSeed);
         addField(form, row, "Terrain seed", fields.terrainSeed);
 
@@ -100,6 +103,15 @@ public class StartupConfigDialog
         JTextField field = new JTextField(value, 16);
         field.setEditable(false);
         return addField(panel, row, label, field);
+    }
+
+    private static int addCheckBox(JPanel panel, int row, String label,
+                                   JCheckBox field)
+    {
+        addLabel(panel, row, label);
+        GridBagConstraints constraints = fieldConstraints(row);
+        panel.add(field, constraints);
+        return row + 1;
     }
 
     private static void addLabel(JPanel panel, int row, String text)
@@ -165,6 +177,7 @@ public class StartupConfigDialog
         final JTextField preyBreeding = new JTextField("0.55", 16);
         final JTextField diseaseTx = new JTextField("1.75", 16);
         final JTextField diseaseFatal = new JTextField("1.75", 16);
+        final JCheckBox thirstEnabled = new JCheckBox("Enable / 启用", false);
         final JTextField randomSeed = new JTextField("1111", 16);
         final JTextField terrainSeed = new JTextField("20260629", 16);
 
@@ -183,6 +196,7 @@ public class StartupConfigDialog
             preyBreeding.setText("0.55");
             diseaseTx.setText("1.75");
             diseaseFatal.setText("1.75");
+            thirstEnabled.setSelected(false);
             randomSeed.setText(String.valueOf(SimulationConfig.DEFAULT_RANDOM_SEED));
             terrainSeed.setText(String.valueOf(SimulationConfig.DEFAULT_TERRAIN_SEED));
         }
@@ -218,6 +232,7 @@ public class StartupConfigDialog
                     "Disease fatality", diseaseFatal.getText()))
                 .randomSeed(parseLong("Random seed", randomSeed.getText()))
                 .terrainSeed(parseLong("Terrain seed", terrainSeed.getText()))
+                .thirstEnabled(thirstEnabled.isSelected())
                 .build();
             return new StartupOptions(config, parsedSteps, parsedDelay, false);
         }
