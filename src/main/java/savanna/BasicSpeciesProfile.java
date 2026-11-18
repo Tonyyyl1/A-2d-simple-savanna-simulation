@@ -32,6 +32,8 @@ public class BasicSpeciesProfile implements SpeciesProfile
     private final double predationVulnerability;
     private final double grazingRate;
     private final int plantFoodValue;
+    /** Habitat score per terrain, by TerrainType.ordinal(); fixed because the name is. */
+    private final double[] habitatByTerrain;
     /** v3.2 A-4: when set, five life-history getters read {@link EcologyParameters}. */
     private EcologyParameters.Key[] card;
 
@@ -60,6 +62,12 @@ public class BasicSpeciesProfile implements SpeciesProfile
                                int plantFoodValue)
     {
         this.name = name;
+        TerrainType[] terrains = TerrainType.values();
+        habitatByTerrain = new double[terrains.length];
+        for(TerrainType terrain : terrains) {
+            habitatByTerrain[terrain.ordinal()] =
+                HabitatPreferences.computeSpawnModifier(name, terrain);
+        }
         this.color = color;
         this.predator = predator;
         this.preyNames = new HashSet<>(preyNames);
@@ -87,6 +95,13 @@ public class BasicSpeciesProfile implements SpeciesProfile
     public String getName()
     {
         return name;
+    }
+
+    @Override
+    public double habitatSpawnModifier(TerrainType terrain)
+    {
+        return terrain == null ? HabitatPreferences.computeSpawnModifier(name, null)
+                               : habitatByTerrain[terrain.ordinal()];
     }
 
     public Color getColor()

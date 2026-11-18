@@ -1,8 +1,10 @@
 package savanna;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,14 +34,15 @@ public final class PositionStepCoordinator
         if(currentField == null || context == null) {
             throw new IllegalArgumentException("field and context are required");
         }
-        if(!currentField.hasConsistentState()) {
+        if(RuntimeAudit.enabled() && !currentField.hasConsistentState()) {
             throw new IllegalStateException(
                 "R2 cannot capture an inconsistent step-start field");
         }
         this.currentField = currentField;
         this.context = context;
         adultsById = captureAdults(currentField);
-        snapshot = snapshotFor(adultsById);
+        snapshot = snapshotFor(adultsById, currentField.getDepth(),
+            currentField.getWidth());
         interactionGeometry = StepStartInteractionGeometry.fromSpatialView(
             context.getSpatialEcologyView(), adultsById);
         proposalsById = new LinkedHashMap<>();
@@ -100,11 +103,12 @@ public final class PositionStepCoordinator
 
     private Field resolveAndCommit(boolean requireCompleteFrame)
     {
-        PositionClaimBatch.Builder batchBuilder = PositionClaimBatch.builder();
+        PositionClaimBatch.Builder batchBuilder =
+            PositionClaimBatch.builder(snapshot.size());
         Map<PositionActorKey, PositionClaim> spawnClaims = new LinkedHashMap<>();
         for(long adultId : snapshot.getAdultIds()) {
-            PositionActorKey actor = PositionActorKey.adult(adultId);
             SavannahAnimal animal = adultsById.get(adultId);
+            PositionActorKey actor = adultKey(adultId, animal);
             SavannahAnimal.PositionProposal proposal = proposalsById.get(adultId);
             if(animal == null || !animal.isAlive()) {
                 batchBuilder.release(actor);
@@ -112,7 +116,7 @@ public final class PositionStepCoordinator
                 continue;
             }
             if(proposal == null || !proposal.hasAdultClaim()) {
-                batchBuilder.add(PositionClaim.stay(adultId,
+                batchBuilder.add(PositionClaim.stay(actor,
                     PositionPriority.ORDINARY_MOVE,
                     context.getPositionWaitingDebt(adultId)));
             }
@@ -125,20 +129,24 @@ public final class PositionStepCoordinator
         PositionTopology topology = context.getPositionTopology();
         PositionPlan plan = new PurePositionReservationResolver(
             PositionKernelPolicyRegistry.current()).resolve(snapshot, batch,
-            topology, Collections.<Location>emptySet(), context.getStep());
-        PositionPlanValidator.requireValid(snapshot, plan, topology,
-            Collections.<Location>emptySet(), batch.getReleased(),
-            adultId -> {
-                SavannahAnimal mover = adultsById.get(adultId);
-                // A crowded mover that loses every nearer cell is placed by the kernel's 12-cell
-                // search budget, which reaches 3 cells at a map corner; that is not a teleport.
-                return mover == null ? KERNEL_FALLBACK_REACH
-                    : Math.max(mover.maxMoveDistance(), KERNEL_FALLBACK_REACH);
-            });
+            topology, Collections.<Location>emptySet(), context.getStep(),
+            context.getPositionResolverScratch());
+        if(RuntimeAudit.enabled()) {
+            PositionPlanValidator.requireValid(snapshot, plan, topology,
+                Collections.<Location>emptySet(), batch.getReleased(),
+                adultId -> {
+                    SavannahAnimal mover = adultsById.get(adultId);
+                    // A crowded mover that loses every nearer cell is placed by the kernel's
+                    // 12-cell search budget, which reaches 3 cells at a map corner; that is
+                    // not a teleport.
+                    return mover == null ? KERNEL_FALLBACK_REACH
+                        : Math.max(mover.maxMoveDistance(), KERNEL_FALLBACK_REACH);
+                });
+        }
 
         PositionCommitReservationBoard reservations =
             new PositionCommitReservationBoard(currentField.getDepth(),
-                currentField.getWidth());
+                currentField.getWidth(), snapshot.size());
         Map<Long, Location> adultDestinations = new LinkedHashMap<>();
         reserveAdults(reservations, plan, batch, adultDestinations);
         reserveWinningSpawns(reservations, plan, spawnClaims);
@@ -155,14 +163,18 @@ public final class PositionStepCoordinator
         resolveDuePregnancies();
         completeBehaviorOutcomes(plan, successfulBirths);
         if(requireCompleteFrame) {
-            context.requireCompleteStepFrameLedgers(
-                new LinkedHashSet<>(snapshot.getAdultIds()));
+            if(RuntimeAudit.enabled()) {
+                context.requireCompleteStepFrameLedgers(
+                    new LinkedHashSet<>(snapshot.getAdultIds()));
+            }
             context.finishPredatorRecruitmentStep(
                 new LinkedHashSet<>(snapshot.getAdultIds()));
         }
 
-        validateCommit(committed, plan, batch.getReleased(), adultDestinations,
-            newbornDestinations);
+        if(RuntimeAudit.enabled()) {
+            validateCommit(committed, plan, batch.getReleased(), adultDestinations,
+                newbornDestinations);
+        }
         context.recordPositionPlan(plan);
         context.reconcilePositionWaitingDebt(plan, committed);
         context.finishLongHorizonTrophicStep(committed);
@@ -190,7 +202,7 @@ public final class PositionStepCoordinator
     }
 
     private static StepStartPositionSnapshot snapshotFor(
-        Map<Long, SavannahAnimal> adults)
+        Map<Long, SavannahAnimal> adults, int depth, int width)
     {
         Map<Long, Location> origins = new LinkedHashMap<>();
         for(Map.Entry<Long, SavannahAnimal> entry : adults.entrySet()) {
@@ -202,7 +214,8 @@ public final class PositionStepCoordinator
             origins.put(entry.getKey(), new Location(location.row(),
                 location.col()));
         }
-        return StepStartPositionSnapshot.of(origins);
+        return StepStartPositionSnapshot.of(origins, depth, width,
+            id -> adultKey(id.longValue(), adults.get(id)));
     }
 
     private void addLiveSpawnClaims(SavannahAnimal.PositionProposal proposal,
@@ -239,9 +252,12 @@ public final class PositionStepCoordinator
                                PositionClaimBatch batch,
                                Map<Long, Location> adultDestinations)
     {
-        for(long adultId : snapshot.getAdultIds()) {
-            PositionActorKey actor = PositionActorKey.adult(adultId);
+        List<Long> adultIds = snapshot.getAdultIds();
+        List<PositionActorKey> adultKeys = snapshot.getAdultKeys();
+        for(int adultIndex = 0; adultIndex < adultIds.size(); adultIndex++) {
+            long adultId = adultIds.get(adultIndex).longValue();
             SavannahAnimal animal = adultsById.get(adultId);
+            PositionActorKey actor = adultKeys.get(adultIndex);
             PositionResolution resolution = plan.getResolution(actor);
             if(batch.isReleased(actor)) {
                 if(animal != null && animal.isAlive()) {
@@ -256,7 +272,7 @@ public final class PositionStepCoordinator
                     "Living adult lacks a committed R2 destination: " + actor);
             }
             Location destination = resolution.getDestination();
-            if(!reservations.tryReserve(actor, destination)) {
+            if(!reservations.tryReserveAdult(adultIndex, destination)) {
                 throw new IllegalStateException(
                     "Validated R2 plan could not reserve adult destination: " +
                     actor + '@' + destination);
@@ -286,7 +302,7 @@ public final class PositionStepCoordinator
         for(Map.Entry<Long, Location> entry : adultDestinations.entrySet()) {
             long adultId = entry.getKey();
             SavannahAnimal animal = adultsById.get(adultId);
-            PositionActorKey actor = PositionActorKey.adult(adultId);
+            PositionActorKey actor = adultKey(adultId, animal);
             PositionResolution resolution = plan.getResolution(actor);
             Location origin = snapshot.originOf(adultId);
             Location destination = entry.getValue();
@@ -408,9 +424,16 @@ public final class PositionStepCoordinator
                 continue;
             }
             proposal.complete(plan,
-                plan.getResolution(PositionActorKey.adult(adultId)),
+                plan.getResolution(adultKey(adultId, adultsById.get(adultId))),
                 successfulBirths.containsKey(adultId), context);
         }
+    }
+
+    /** The animal's cached adult key, or a fresh one when the ID has no animal (released). */
+    private static PositionActorKey adultKey(long adultId, SavannahAnimal animal)
+    {
+        return animal != null && animal.getId() == adultId
+            ? animal.getPositionActorKey() : PositionActorKey.adult(adultId);
     }
 
     private void validateCommit(Field committed, PositionPlan plan,
@@ -488,10 +511,14 @@ public final class PositionStepCoordinator
     {
         private final int depth;
         private final int width;
-        private final Map<PositionActorKey, Location> byActor;
-        private final Map<Location, PositionActorKey> byLocation;
+        /** Per cell: true once a destination has been reserved there. */
+        private final boolean[] reservedCells;
+        /** Per adult (position in the snapshot's adult list): true once reserved. */
+        private final boolean[] reservedAdults;
+        /** Spawn actors are few, so they keep a small map (get and put only). */
+        private final Map<PositionActorKey, Location> spawnDestinations;
 
-        PositionCommitReservationBoard(int depth, int width)
+        PositionCommitReservationBoard(int depth, int width, int adultCount)
         {
             if(depth <= 0 || width <= 0) {
                 throw new IllegalArgumentException(
@@ -499,28 +526,46 @@ public final class PositionStepCoordinator
             }
             this.depth = depth;
             this.width = width;
-            byActor = new LinkedHashMap<>();
-            byLocation = new LinkedHashMap<>();
+            reservedCells = new boolean[depth * width];
+            reservedAdults = new boolean[adultCount];
+            spawnDestinations = new HashMap<>();
+        }
+
+        /** Reserves the destination of the adult at {@code adultIndex} in the snapshot. */
+        boolean tryReserveAdult(int adultIndex, Location location)
+        {
+            if(location == null || !inside(location) || reservedAdults[adultIndex] ||
+               reservedCells[location.row() * width + location.col()]) {
+                return false;
+            }
+            reservedAdults[adultIndex] = true;
+            reservedCells[location.row() * width + location.col()] = true;
+            return true;
         }
 
         boolean tryReserve(PositionActorKey actor, Location location)
         {
-            if(actor == null || location == null ||
-               location.row() < 0 || location.row() >= depth ||
-               location.col() < 0 || location.col() >= width ||
-               byActor.containsKey(actor) ||
-               byLocation.containsKey(location)) {
+            if(actor == null || location == null || !inside(location) ||
+               spawnDestinations.containsKey(actor) ||
+               reservedCells[location.row() * width + location.col()]) {
                 return false;
             }
-            Location copy = new Location(location.row(), location.col());
-            byActor.put(actor, copy);
-            byLocation.put(copy, actor);
+            spawnDestinations.put(actor,
+                new Location(location.row(), location.col()));
+            reservedCells[location.row() * width + location.col()] = true;
             return true;
         }
 
+        /** The destination reserved for a spawn actor, or null. */
         Location destinationOf(PositionActorKey actor)
         {
-            return byActor.get(actor);
+            return spawnDestinations.get(actor);
+        }
+
+        private boolean inside(Location location)
+        {
+            return location.row() >= 0 && location.row() < depth &&
+                   location.col() >= 0 && location.col() < width;
         }
     }
 }

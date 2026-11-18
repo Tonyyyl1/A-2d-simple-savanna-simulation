@@ -1,0 +1,3 @@
+# v3.3 P-1 lever 2: herbivore starvation grace period (steps)
+base init.lion=0,init.cheetah=0
+axis starvation.herbivoreSteps=12,24

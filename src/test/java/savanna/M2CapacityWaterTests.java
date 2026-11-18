@@ -39,6 +39,7 @@ public final class M2CapacityWaterTests
         denseGazelleChange();
         waterZonePredation();
         grassGateAndUpkeep();
+        grazingRefugeAndCondition();
         cheetahRangeBonus();
         territoryLimits();
         crowdedPredatorLeavesTheCrowd();
@@ -405,6 +406,62 @@ public final class M2CapacityWaterTests
             EcologyParameters.defaults().getInt(EcologyParameters.Key.WATER_ZONE_RADIUS));
         TestSupport.assertClose("M3 W success scale is 1 by default", 1.0,
             EcologyParameters.defaults().get(EcologyParameters.Key.WATER_ZONE_SUCCESS), 1e-12);
+    }
+
+    /** v3.3 P-1 (N1, N2): thin-grass bites, the grazing refuge, and the body-condition factor. */
+    private static void grazingRefugeAndCondition()
+    {
+        TestSupport.assertClose("P-1 N1 is off by default", 0.0,
+            EcologyParameters.defaults().get(EcologyParameters.Key.GRAZING_FULL_INTAKE_FILL), 1e-12);
+        TestSupport.assertClose("P-1 N1 refuge is 0 by default", 0.0,
+            EcologyParameters.defaults().get(EcologyParameters.Key.GRAZING_REFUGE_FILL), 1e-12);
+        TestSupport.assertClose("P-1 N2 is off by default", 0.0,
+            EcologyParameters.defaults().get(EcologyParameters.Key.HERBIVORE_CONDITION_MIN), 1e-12);
+        TestSupport.assertClose("P-1 N2: at the minimum no conception", 0.0,
+            MateFindingBreedingSystem.conditionFactor(0.3, 0.3, 0.9), 1e-12);
+        TestSupport.assertClose("P-1 N2: below the minimum no conception", 0.0,
+            MateFindingBreedingSystem.conditionFactor(0.1, 0.3, 0.9), 1e-12);
+        TestSupport.assertClose("P-1 N2: halfway is half", 0.5,
+            MateFindingBreedingSystem.conditionFactor(0.6, 0.3, 0.9), 1e-12);
+        TestSupport.assertClose("P-1 N2: at the full share the factor is 1", 1.0,
+            MateFindingBreedingSystem.conditionFactor(0.9, 0.3, 0.9), 1e-12);
+        TestSupport.assertClose("P-1 N2: above the full share it stays 1", 1.0,
+            MateFindingBreedingSystem.conditionFactor(1.0, 0.3, 0.9), 1e-12);
+
+        try {
+            EcologyParameters.override(EcologyParameters.defaults().with(
+                "grazing.fullIntakeFill=0.5,grazing.refugeFill=0.2"));
+            Simulator simulator = new Simulator(SimulationConfig.builder()
+                .mapScale(1).randomSeed(1111L).build(), false);
+            simulator.setVerbose(false);
+            GrasslandFoodSystem grass =
+                (GrasslandFoodSystem)simulator.getContext().getFoodSystem();
+            TerrainMap terrain = simulator.getContext().getTerrainMap();
+            boolean closes = true;
+            boolean refuge = true;
+            for(int step = 0; step < 300 && simulator.getField().isViable(); step++) {
+                simulator.simulateOneStep();
+                double left = grass.getInitialBiomass() + grass.getGrownBiomass();
+                double right = grass.getTotalBiomass() + grass.getConsumedBiomass();
+                closes &= Math.abs(left - right) <= 1e-9 * Math.max(1.0, left);
+                for(int row = 0; row < terrain.getDepth(); row++) {
+                    for(int col = 0; col < terrain.getWidth(); col++) {
+                        Location cell = new Location(row, col);
+                        double capacity = grass.getCapacityAt(cell);
+                        if(capacity > 0.0) {
+                            refuge &= grass.getFoodLevelAt(cell) >= 0.2 * capacity - 1e-9;
+                        }
+                    }
+                }
+            }
+            TestSupport.assertTrue("P-1 N1: the grass ledger closes with thin-grass bites", closes);
+            TestSupport.assertTrue("P-1 N1: grazing never takes the refuge", refuge);
+            TestSupport.assertTrue("P-1 N1: herbivores still consumed grass",
+                grass.getConsumedBiomass() > 0.0);
+        }
+        finally {
+            EcologyParameters.override(null);
+        }
     }
 
     /** M3 change B: herbivore grass gate and pregnancy upkeep. */

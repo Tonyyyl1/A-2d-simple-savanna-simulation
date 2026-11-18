@@ -1,0 +1,10 @@
+# v3.3 P-1 round 8: raise the troughs of candidate A (preyOverload 10, capacityScale 0.4, N1 0.5/0.15), whose whole-run minima are Zebra 710-776 (need 800) and Gazelle 999-1318 (need 1200)
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate grazing.refugeFill=0.2
+candidate grazing.refugeFill=0.25
+candidate grazing.refugeFill=0.2,grass.capacityScale=0.45
+candidate grazing.refugeFill=0.2,capacity.preyOverload=9
+candidate grazing.refugeFill=0.2,repro.herbivoreConditionMin=0.3
+candidate grazing.fullIntakeFill=0.7
+candidate grazing.fullIntakeFill=0.7,grazing.refugeFill=0.2
+candidate grazing.refugeFill=0.2,species.gazelle.breedingProbability=0.09

@@ -1,0 +1,11 @@
+# v3.3 P-1 round 12 (after an Opus 5.5 consultation): per-species grazingRate (never swept) and the Gazelle-only grass gate on candidate A; 10000 steps because shorter runs are exact prefixes and cannot accept a candidate
+# base = candidate A: preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.15
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate species.zebra.grazingRate=0.10
+candidate species.zebra.grazingRate=0.085
+candidate species.buffalo.grazingRate=0.11
+candidate species.buffalo.grazingRate=0.11,species.buffalo.breedingProbability=0.035
+candidate species.gazelle.grazingRate=0.10
+candidate species.zebra.grazingRate=0.10,species.gazelle.grazingRate=0.10
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMax=0.5
+candidate species.zebra.grazingRate=0.10,species.buffalo.grazingRate=0.12,species.gazelle.grazingRate=0.10,repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMax=0.5

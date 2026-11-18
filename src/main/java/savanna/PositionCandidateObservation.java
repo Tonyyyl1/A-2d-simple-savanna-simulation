@@ -71,7 +71,6 @@ public final class PositionCandidateObservation
 
     private static Location copy(Location location)
     {
-        return location == null ? null
-            : new Location(location.row(), location.col());
+        return location;
     }
 }

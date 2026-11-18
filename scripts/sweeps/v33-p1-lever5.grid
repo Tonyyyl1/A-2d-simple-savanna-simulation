@@ -1,0 +1,3 @@
+# v3.3 P-1 lever 5: Gazelle's own crowding limit (births fall above this many in the window)
+base init.lion=0,init.cheetah=0
+axis capacity.overload.gazelle=15,20,30

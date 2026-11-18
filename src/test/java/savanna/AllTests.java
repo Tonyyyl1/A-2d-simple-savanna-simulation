@@ -37,6 +37,7 @@ public class AllTests
         if("default".equals(mode) || full || "core".equals(mode)) {
             IntCounterTests.run();
             CoreIdTests.run();
+            RuntimeAuditTests.run();
             CoreFieldTests.run();
             FoodSemTests.run();
         }

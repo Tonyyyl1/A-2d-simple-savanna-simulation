@@ -1,0 +1,10 @@
+# v3.3 P-1 round 4: N1 (fullIntakeFill 0.5, refuge) holds the fluctuation at 10000 steps but Gazelle sits near 5000 and hotspots exceed 300;
+# bring the herbivore means back toward the targets with the old levers (grass capacity scale, Gazelle birth rate, N2).
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1
+candidate grass.capacityScale=0.4
+candidate grass.capacityScale=0.35
+candidate grass.capacityScale=0.3
+candidate grazing.refugeFill=0.15,grass.capacityScale=0.4
+candidate species.gazelle.breedingProbability=0.09
+candidate species.gazelle.breedingProbability=0.09,grass.capacityScale=0.4
+candidate repro.herbivoreConditionMin=0.3,grass.capacityScale=0.4

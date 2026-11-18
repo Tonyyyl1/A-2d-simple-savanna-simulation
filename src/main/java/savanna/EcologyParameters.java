@@ -131,6 +131,15 @@ public final class EcologyParameters
         // v3.2 B-1: most land steps a hunting predator may advance in one step.
         LION_SPEED("movement.lionSpeed", 2, 1, 6, true),
         CHEETAH_SPEED("movement.cheetahSpeed", 3, 1, 6, true),
+        // v3.3 P-1 (N1, N2; user-approved 2026-11-13; defaults are off).
+        /** N1: grass fill (biomass / capacity of the cell) at or above which a bite is full; below it the bite shrinks linearly to nothing at the refuge (0 = off). */
+        GRAZING_FULL_INTAKE_FILL("grazing.fullIntakeFill", 0.0, 0.0, 1.0, false),
+        /** N1: share of a cell's capacity that grazing never takes (a refuge the grass regrows from); only read when the full-intake fill is on. */
+        GRAZING_REFUGE_FILL("grazing.refugeFill", 0.0, 0.0, 0.9, false),
+        /** N2: a herbivore at or below this share of max food does not conceive; the factor rises linearly to 1 at the full share (0 = off). */
+        HERBIVORE_CONDITION_MIN("repro.herbivoreConditionMin", 0.0, 0.0, 1.0, false),
+        /** N2: share of max food at which the condition factor reaches 1. */
+        HERBIVORE_CONDITION_FULL("repro.herbivoreConditionFull", 0.9, 0.01, 1.5, false),
         // v3.2 C-1 levers (all 0 = off).
         /** C-1 lever 1: a herbivore at or above this share of max food does not graze; below it only grazes to fill up. */
         GRAZING_SATIATION("grazing.satiationFraction", 0.0, 0.0, 1.0, false),

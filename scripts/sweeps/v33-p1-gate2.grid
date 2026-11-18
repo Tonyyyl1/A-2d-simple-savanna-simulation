@@ -1,0 +1,11 @@
+# v3.3 P-1 round 11: round 10 best = candidate A + grass gate on all herbivores (grassMin 0.15 default, grassMax 0.5): Zebra min 811, Gazelle min 1212, span 120, lnSdRun 0.29, but Buffalo min 460 (need 480) and Buffalo means fall;
+# compensate Buffalo with its own birth rate and fine-tune the gate
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4,repro.grassGate=1,repro.grassMax=0.5
+candidate species.buffalo.breedingProbability=0.05
+candidate species.buffalo.breedingProbability=0.06
+candidate species.buffalo.breedingProbability=0.07
+candidate repro.grassMin=0.2
+candidate repro.grassMin=0.1
+candidate repro.grassMax=0.45
+candidate species.buffalo.breedingProbability=0.06,repro.grassMin=0.2
+candidate species.buffalo.breedingProbability=0.06,starvation.herbivoreSteps=8

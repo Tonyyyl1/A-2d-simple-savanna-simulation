@@ -1,0 +1,6 @@
+# v3.3 P-1 round 1 combination: best two values of levers 1, 3, 2, 4 (lever 5 had no effect)
+base init.lion=0,init.cheetah=0,repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,species.gazelle.maxLitterSize=1
+axis species.gazelle.breedingProbability=0.05,0.064
+axis repro.grassMax=0.6,0.8
+axis starvation.herbivoreSteps=3,24
+axis grass.floorRate=0.004,0.008

@@ -93,6 +93,6 @@ public final class ReachableResourceFact
 
     private static Location copy(Location value)
     {
-        return new Location(value.row(), value.col());
+        return java.util.Objects.requireNonNull(value);
     }
 }

@@ -59,6 +59,37 @@ public final class PositionClaim
             Collections.<Location>emptyList(), null, 0, waitingDebt);
     }
 
+    /** Same as {@link #stay(long, PositionPriority, int)} with a prebuilt adult key. */
+    public static PositionClaim stay(PositionActorKey adultKey,
+                                     PositionPriority priority, int waitingDebt)
+    {
+        requireAdultKey(adultKey);
+        return new PositionClaim(adultKey,
+            PositionClaimKind.STAY, priority, null,
+            Collections.<Location>emptyList(), null, 0, waitingDebt);
+    }
+
+    /** Same as {@link #move(long, PositionPriority, Location, List, int, int)}
+     *  with a prebuilt adult key. */
+    public static PositionClaim move(PositionActorKey adultKey,
+                                     PositionPriority priority,
+                                     Location requested,
+                                     List<Location> explicitFallbacks,
+                                     int searchCandidateBudget, int waitingDebt)
+    {
+        requireAdultKey(adultKey);
+        return new PositionClaim(adultKey,
+            PositionClaimKind.MOVE, priority, requested, explicitFallbacks,
+            null, searchCandidateBudget, waitingDebt);
+    }
+
+    private static void requireAdultKey(PositionActorKey adultKey)
+    {
+        if(adultKey == null || !adultKey.isAdult()) {
+            throw new IllegalArgumentException("An adult position key is required");
+        }
+    }
+
     public static PositionClaim move(long adultId, PositionPriority priority,
                                      Location requested,
                                      List<Location> explicitFallbacks,
@@ -145,7 +176,6 @@ public final class PositionClaim
 
     private static Location copy(Location location)
     {
-        return location == null ? null :
-            new Location(location.row(), location.col());
+        return location;
     }
 }

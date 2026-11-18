@@ -48,6 +48,18 @@ public abstract class SavannahAnimal extends Animal
         new ProductionTargetState();
     private final ReproductionState reproduction = new ReproductionState();
     private long motherId;
+    private PositionActorKey positionActorKey;
+
+    /** The adult position key of this animal, built once on first use (ID never changes). */
+    public PositionActorKey getPositionActorKey()
+    {
+        PositionActorKey key = positionActorKey;
+        if(key == null) {
+            key = PositionActorKey.adult(getId());
+            positionActorKey = key;
+        }
+        return key;
+    }
 
     public SavannahAnimal(SpeciesProfile profile, boolean randomAge, Location location)
     {
@@ -520,27 +532,47 @@ public abstract class SavannahAnimal extends Animal
         int radius = profile.getBreedingRange() *
             intParam(EcologyParameters.Key.MATE_SENSE_FACTOR);
         Location origin = getLocation();
-        Location best = null;
-        int bestDistance = Integer.MAX_VALUE;
-        long bestId = Long.MAX_VALUE;
-        for(int row = origin.row() - radius; row <= origin.row() + radius; row++) {
-            for(int col = origin.col() - radius; col <= origin.col() + radius; col++) {
-                if(row < 0 || col < 0 || row >= context.getTerrainMap().getDepth() ||
-                   col >= context.getTerrainMap().getWidth()) continue;
-                SpatialAnimalFact fact = view.getAnimalFactAt(new Location(row, col));
-                if(fact == null || fact.getSex() != Sex.MALE ||
-                   fact.getLifeStage() != LifeStage.ADULT ||
-                   !profile.getName().equals(fact.getSpecies())) continue;
-                int distance = chebyshev(origin, fact.getLocation());
-                if(distance < bestDistance ||
-                   (distance == bestDistance && fact.getId() < bestId)) {
-                    best = fact.getLocation();
-                    bestDistance = distance;
-                    bestId = fact.getId();
-                }
+        // The view offers only same-species facts; the nearest adult male wins, ties by
+        // the smallest ID, so the scan order does not matter.
+        NearestFactSink nearest = new NearestFactSink(origin) {
+            @Override
+            boolean accepts(SpatialAnimalFact fact)
+            {
+                return fact.getSex() == Sex.MALE &&
+                    fact.getLifeStage() == LifeStage.ADULT;
+            }
+        };
+        view.forEachAnimalFactAround(origin, radius, profile.getName(), false, nearest);
+        return nearest.best;
+    }
+
+    /** Keeps the nearest accepted fact: smallest Chebyshev distance, then smallest ID. */
+    private abstract static class NearestFactSink implements SpatialEcologyView.AnimalFactSink
+    {
+        private final Location origin;
+        private int bestDistance = Integer.MAX_VALUE;
+        private long bestId = Long.MAX_VALUE;
+        Location best;
+
+        NearestFactSink(Location origin)
+        {
+            this.origin = origin;
+        }
+
+        abstract boolean accepts(SpatialAnimalFact fact);
+
+        @Override
+        public void accept(SpatialAnimalFact fact)
+        {
+            if(!accepts(fact)) return;
+            int distance = chebyshev(origin, fact.getLocation());
+            if(distance < bestDistance ||
+               (distance == bestDistance && fact.getId() < bestId)) {
+                best = fact.getLocation();
+                bestDistance = distance;
+                bestId = fact.getId();
             }
         }
-        return best;
     }
 
     private Location dependentMotherLocation(SimulationContext context,
@@ -564,25 +596,25 @@ public abstract class SavannahAnimal extends Animal
     /** Nearest adult predator within the threat radius that can eat this prey. */
     private Location nearestThreat(SimulationContext context, Location origin)
     {
-        Location best = null;
-        int bestDistance = Integer.MAX_VALUE;
-        long bestId = Long.MAX_VALUE;
-        for(SpatialAnimalFact fact : factsAround(context, origin,
-                intParam(EcologyParameters.Key.THREAT_RADIUS))) {
-            if(!fact.isPredator() || fact.getLifeStage() != LifeStage.ADULT) continue;
-            SpeciesProfile hunter = SpeciesRegistry.getProfile(fact.getSpecies());
-            // Only predators that can eat this prey and are active now count.
-            if(hunter == null || !HuntLocalOpportunity.canHunt(hunter, this,
-                   intParam(EcologyParameters.Key.CHEETAH_ZEBRA_STAGE)) ||
-               !hunter.isActiveDuring(context.getClock().getPhase())) continue;
-            int distance = chebyshev(origin, fact.getLocation());
-            if(distance < bestDistance || (distance == bestDistance && fact.getId() < bestId)) {
-                best = fact.getLocation();
-                bestDistance = distance;
-                bestId = fact.getId();
+        if(origin == null) return null;
+        // Predator facts only; the nearest qualifying one wins, ties by the smallest ID.
+        NearestFactSink nearest = new NearestFactSink(origin) {
+            @Override
+            boolean accepts(SpatialAnimalFact fact)
+            {
+                if(!fact.wasAliveAtCapture() || !fact.isPredator() ||
+                   fact.getLifeStage() != LifeStage.ADULT) return false;
+                SpeciesProfile hunter = SpeciesRegistry.getProfile(fact.getSpecies());
+                // Only predators that can eat this prey and are active now count.
+                return hunter != null && HuntLocalOpportunity.canHunt(hunter,
+                           SavannahAnimal.this,
+                           intParam(EcologyParameters.Key.CHEETAH_ZEBRA_STAGE)) &&
+                    hunter.isActiveDuring(context.getClock().getPhase());
             }
-        }
-        return best;
+        };
+        context.getSpatialEcologyView().forEachAnimalFactAround(origin,
+            intParam(EcologyParameters.Key.THREAT_RADIUS), null, true, nearest);
+        return nearest.best;
     }
 
     /**
@@ -620,38 +652,24 @@ public abstract class SavannahAnimal extends Animal
     /** Centroid of other adult predators when more than the exclusion count are near. */
     private Location predatorCrowdCentre(SimulationContext context, Location origin)
     {
-        int count = 0;
-        long rows = 0;
-        long cols = 0;
-        for(SpatialAnimalFact fact : factsAround(context, origin,
-                intParam(EcologyParameters.Key.PREDATOR_EXCLUSION_RADIUS))) {
-            if(!fact.isPredator() || fact.getId() == getId() ||
-               fact.getLifeStage() != LifeStage.ADULT || fact.getId() == motherId) continue;
-            count++;
-            rows += fact.getLocation().row();
-            cols += fact.getLocation().col();
-        }
+        if(origin == null) return null;
+        long ownId = getId();
+        long excludedMotherId = motherId;
+        // The sums do not depend on the scan order, so the sink only counts.
+        long[] totals = new long[3]; // count, rows, cols
+        context.getSpatialEcologyView().forEachAnimalFactAround(origin,
+            intParam(EcologyParameters.Key.PREDATOR_EXCLUSION_RADIUS), null, true,
+            fact -> {
+                if(!fact.wasAliveAtCapture() || !fact.isPredator() ||
+                   fact.getId() == ownId || fact.getLifeStage() != LifeStage.ADULT ||
+                   fact.getId() == excludedMotherId) return;
+                totals[0]++;
+                totals[1] += fact.getLocation().row();
+                totals[2] += fact.getLocation().col();
+            });
+        long count = totals[0];
         if(count <= intParam(EcologyParameters.Key.PREDATOR_EXCLUSION_COUNT)) return null;
-        return new Location((int)(rows / count), (int)(cols / count));
-    }
-
-    private static List<SpatialAnimalFact> factsAround(SimulationContext context,
-                                                       Location origin, int radius)
-    {
-        List<SpatialAnimalFact> facts = new ArrayList<>();
-        if(origin == null) return facts;
-        SpatialEcologyView view = context.getSpatialEcologyView();
-        int depth = context.getTerrainMap().getDepth();
-        int width = context.getTerrainMap().getWidth();
-        for(int row = Math.max(0, origin.row() - radius);
-            row <= Math.min(depth - 1, origin.row() + radius); row++) {
-            for(int col = Math.max(0, origin.col() - radius);
-                col <= Math.min(width - 1, origin.col() + radius); col++) {
-                SpatialAnimalFact fact = view.getAnimalFactAt(new Location(row, col));
-                if(fact != null && fact.wasAliveAtCapture()) facts.add(fact);
-            }
-        }
-        return facts;
+        return new Location((int)(totals[1] / count), (int)(totals[2] / count));
     }
 
     private static int chebyshev(Location first, Location second)
@@ -972,8 +990,7 @@ public abstract class SavannahAnimal extends Animal
 
         private static Location copy(Location location)
         {
-            return location == null ? null :
-                new Location(location.row(), location.col());
+            return location;
         }
     }
 
@@ -1373,8 +1390,8 @@ public abstract class SavannahAnimal extends Animal
         Location requested = outward.isEmpty() ? origin : outward.get(0);
         int debt = context.getPositionWaitingDebt(getId());
         PositionClaim claim = requested.equals(origin)
-            ? PositionClaim.stay(getId(), PositionPriority.WATER_DEPARTURE, debt)
-            : PositionClaim.move(getId(), PositionPriority.WATER_DEPARTURE,
+            ? PositionClaim.stay(getPositionActorKey(), PositionPriority.WATER_DEPARTURE, debt)
+            : PositionClaim.move(getPositionActorKey(), PositionPriority.WATER_DEPARTURE,
                 requested, outward, 0, debt);
         BehaviorIntent primary = new BehaviorIntent(getId(), ActionType.MOVE,
             BehaviorReason.WATER_DEPARTURE, requested);
@@ -1533,7 +1550,7 @@ public abstract class SavannahAnimal extends Animal
         PositionPriority priority = positionPriority(waterPriority, primaryIntent);
         int debt = context.getPositionWaitingDebt(getId());
         if(origin == null || requested == null || requested.equals(origin)) {
-            return PositionClaim.stay(getId(), priority, debt);
+            return PositionClaim.stay(getPositionActorKey(), priority, debt);
         }
 
         List<Location> fallbacks;
@@ -1556,7 +1573,7 @@ public abstract class SavannahAnimal extends Animal
             searchBudget = PositionKernelPolicyRegistry.current()
                 .getFallbackCandidateBudget();
         }
-        return PositionClaim.move(getId(), priority, requested, fallbacks,
+        return PositionClaim.move(getPositionActorKey(), priority, requested, fallbacks,
             searchBudget, debt);
     }
 

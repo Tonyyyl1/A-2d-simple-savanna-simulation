@@ -196,6 +196,15 @@ public class MateFindingBreedingSystem implements BreedingSystem
         probability *= infection;
         double survival = Math.max(0.10,
             1.0 - parent.getSurvivalPressure() * 0.82);
+        double conditionMin = EcologyParameters.current()
+            .get(EcologyParameters.Key.HERBIVORE_CONDITION_MIN);
+        if(conditionMin > 0.0 && !parent.getProfile().isPredator()) {
+            // N2: conception follows the body condition (food share), at most the old factor.
+            survival = Math.min(survival, conditionFactor(
+                (double)parent.getFoodLevel() / parent.getProfile().getMaxFoodLevel(),
+                conditionMin, EcologyParameters.current()
+                    .get(EcologyParameters.Key.HERBIVORE_CONDITION_FULL)));
+        }
         probability *= survival;
         double stamina = Math.max(0.20,
             parent.getEffectiveStaminaMultiplier());
@@ -226,16 +235,23 @@ public class MateFindingBreedingSystem implements BreedingSystem
             probability * crowding);
     }
 
-    private MateQueryResult findMateNearby(SavannahAnimal parent,
-                                           InteractionGeometry geometry,
-                                           SimulationContext context)
+    MateQueryResult findMateNearby(SavannahAnimal parent,
+                                   InteractionGeometry geometry,
+                                   SimulationContext context)
     {
         int range = parent.getProfile().getBreedingRange();
+        if(geometry instanceof StepStartInteractionGeometry) {
+            return findMateInWindow(parent, (StepStartInteractionGeometry)geometry,
+                                    context, range);
+        }
         List<Location> locations =
             geometry.getLocationsWithin(parent.getLocation(), range,
                                         context.getRandom());
         boolean eligible = false;
-        TerrainNavigator.Reachability reachable = null;
+        // Land distances come from the terrain's shared reachability window, fetched
+        // only when a candidate mate shows up; null means nothing is reachable.
+        TerrainPassabilityIndex.Window window = null;
+        boolean windowFetched = false;
         for(Location location : locations) {
             Animal animal = geometry.getAnimalAt(location);
             if(animal instanceof SavannahAnimal) {
@@ -245,11 +261,13 @@ public class MateFindingBreedingSystem implements BreedingSystem
                    possibleMate.isAdult() &&
                    possibleMate.getProfile().getName().equals(parent.getProfile().getName())) {
                     // Mates must be reachable over land within the range (G02).
-                    if(reachable == null) {
-                        reachable = TerrainNavigator.reachableDistances(
-                            context.getTerrainMap(), parent.getLocation(), range);
+                    if(!windowFetched) {
+                        windowFetched = true;
+                        window = landWindow(context.getTerrainMap(),
+                                            parent.getLocation(), range);
                     }
-                    int distance = reachable.distanceTo(location);
+                    int distance = window == null ? -1
+                        : landDistance(window, location.row(), location.col());
                     if(distance >= 0 && distance <= range) {
                         eligible = true;
                         break;
@@ -258,6 +276,91 @@ public class MateFindingBreedingSystem implements BreedingSystem
             }
         }
         return new MateQueryResult(true, locations.size(), eligible);
+    }
+
+    /**
+     * Same answer as the list path above without building the shuffled location list: whether
+     * a mate stands in the window does not depend on the visiting order, so the window is
+     * scanned directly; the list length is computed, and the random draws the shuffle would
+     * have made are made and dropped so the random stream stays identical (remove them
+     * together with the next EcologyRules.VERSION increment).
+     */
+    private MateQueryResult findMateInWindow(SavannahAnimal parent,
+                                             StepStartInteractionGeometry geometry,
+                                             SimulationContext context, int range)
+    {
+        Location origin = parent.getLocation();
+        int cells = geometry.countLocationsWithin(origin, range);
+        StepStartInteractionGeometry.drawShuffleStream(cells, context.getRandom());
+        MateCandidateTest candidate = new MateCandidateTest(parent, context.getTerrainMap(),
+                                                           range);
+        boolean eligible = geometry.anyOccupantWithin(origin, range, candidate);
+        return new MateQueryResult(true, cells, eligible);
+    }
+
+    /** A living adult male of the parent's species that is reachable over land within range. */
+    private static final class MateCandidateTest
+        implements StepStartInteractionGeometry.OccupantTest
+    {
+        private final SavannahAnimal parent;
+        private final TerrainMap terrain;
+        private final int range;
+        private TerrainPassabilityIndex.Window window;
+        private boolean windowFetched;
+
+        MateCandidateTest(SavannahAnimal parent, TerrainMap terrain, int range)
+        {
+            this.parent = parent;
+            this.terrain = terrain;
+            this.range = range;
+        }
+
+        @Override
+        public boolean test(Animal animal, int row, int col)
+        {
+            if(!(animal instanceof SavannahAnimal)) {
+                return false;
+            }
+            SavannahAnimal possibleMate = (SavannahAnimal)animal;
+            if(!possibleMate.isAlive() || possibleMate.getSex() != Sex.MALE ||
+               !possibleMate.isAdult() ||
+               !possibleMate.getProfile().getName().equals(parent.getProfile().getName())) {
+                return false;
+            }
+            // Mates must be reachable over land within the range (G02).
+            if(!windowFetched) {
+                windowFetched = true;
+                window = landWindow(terrain, parent.getLocation(), range);
+            }
+            int distance = window == null ? -1 : landDistance(window, row, col);
+            return distance >= 0 && distance <= range;
+        }
+    }
+
+    /**
+     * The terrain's shared reachability window around {@code origin}, or null when the
+     * origin is off the map or on impassable terrain (nothing is reachable then).
+     */
+    private static TerrainPassabilityIndex.Window landWindow(TerrainMap terrain,
+                                                              Location origin, int range)
+    {
+        if(terrain == null || origin == null || origin.row() < 0 ||
+           origin.row() >= terrain.getDepth() || origin.col() < 0 ||
+           origin.col() >= terrain.getWidth() ||
+           !terrain.isPassableAt(origin.row(), origin.col())) {
+            return null;
+        }
+        return terrain.passability().window(origin, range);
+    }
+
+    /** Land distance to a location, or -1 when it lies outside the window or is unreachable. */
+    private static int landDistance(TerrainPassabilityIndex.Window window, int row, int col)
+    {
+        if(row < window.firstRow || row >= window.firstRow + window.localDepth ||
+           col < window.firstCol || col >= window.firstCol + window.localWidth) {
+            return -1;
+        }
+        return window.distanceAt(row, col);
     }
 
     /** Grass fill (biomass / capacity) around the mother, on the old scale. */
@@ -276,6 +379,16 @@ public class MateFindingBreedingSystem implements BreedingSystem
         double fill = context.getFoodSystem().getLocalFill(parent.getLocation(),
             parent.getProfile().getSearchRange());
         return Math.max(0.15, Math.min(1.12, fill * 1.55));
+    }
+
+    /**
+     * N2: 0 at or below {@code min}, rising linearly to 1 at {@code full}
+     * (a step at {@code min} when {@code full} is not above it).
+     */
+    static double conditionFactor(double foodShare, double min, double full)
+    {
+        if(full <= min) return foodShare > min ? 1.0 : 0.0;
+        return Math.max(0.0, Math.min(1.0, (foodShare - min) / (full - min)));
     }
 
     /** M3 change B': whether the grass gate covers this species (0 all herbivores, 1 Gazelle only). */
@@ -401,7 +514,7 @@ public class MateFindingBreedingSystem implements BreedingSystem
         return Math.max(p.get(EcologyParameters.Key.OVERLOAD_FLOOR), factor);
     }
 
-    private static final class MateQueryResult
+    static final class MateQueryResult
     {
         private final boolean performed;
         private final int shuffleInputSize;
@@ -414,6 +527,10 @@ public class MateFindingBreedingSystem implements BreedingSystem
             this.shuffleInputSize = shuffleInputSize;
             this.mateEligible = mateEligible;
         }
+
+        int getShuffleInputSize() { return shuffleInputSize; }
+
+        boolean isMateEligible() { return mateEligible; }
     }
 
     private static final class ProbabilityFactors

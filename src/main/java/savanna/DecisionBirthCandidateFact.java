@@ -14,7 +14,7 @@ public final class DecisionBirthCandidateFact
     private final long actorId;
     private final String speciesKey;
     private final List<Location> orderedLocations;
-    private final String orderDigest;
+    private String orderDigest;
 
     private DecisionBirthCandidateFact(int step, long actorId,
                                        String speciesKey,
@@ -28,21 +28,16 @@ public final class DecisionBirthCandidateFact
         this.step = step;
         this.actorId = actorId;
         this.speciesKey = speciesKey;
-        List<Location> copied = new ArrayList<>();
-        StringBuilder canonical = new StringBuilder();
+        List<Location> copied = new ArrayList<>(candidates.size());
         for(int index = 0; index < candidates.size(); index++) {
             Location location = candidates.get(index);
             if(location == null) {
                 throw new IllegalArgumentException(
                     "breeding candidates cannot contain null");
             }
-            Location factLocation = copy(location);
-            copied.add(factLocation);
-            canonical.append(index).append('@').append(factLocation.row())
-                .append(',').append(factLocation.col()).append('|');
+            copied.add(copy(location));
         }
         orderedLocations = Collections.unmodifiableList(copied);
-        orderDigest = sha256(canonical.toString());
     }
 
     public static DecisionBirthCandidateFact capture(int step,
@@ -73,11 +68,23 @@ public final class DecisionBirthCandidateFact
         return orderedLocations;
     }
 
-    public String getOrderDigest() { return orderDigest; }
+    public String getOrderDigest()
+    {
+        if(orderDigest == null) {
+            StringBuilder canonical = new StringBuilder();
+            for(int index = 0; index < orderedLocations.size(); index++) {
+                Location factLocation = orderedLocations.get(index);
+                canonical.append(index).append('@').append(factLocation.row())
+                    .append(',').append(factLocation.col()).append('|');
+            }
+            orderDigest = sha256(canonical.toString());
+        }
+        return orderDigest;
+    }
 
     private static Location copy(Location location)
     {
-        return new Location(location.row(), location.col());
+        return java.util.Objects.requireNonNull(location);
     }
 
     private static String sha256(String value)

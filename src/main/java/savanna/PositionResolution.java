@@ -53,7 +53,6 @@ public final class PositionResolution
 
     private static Location copy(Location location)
     {
-        return location == null ? null :
-            new Location(location.row(), location.col());
+        return location;
     }
 }

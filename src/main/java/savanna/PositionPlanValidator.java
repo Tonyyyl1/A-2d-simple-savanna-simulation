@@ -69,8 +69,11 @@ public final class PositionPlanValidator
         Map<PositionActorKey, PositionResolution> resolutions =
             plan.getResolutions();
 
-        for(long adultId : snapshot.getAdultIds()) {
-            PositionActorKey actor = PositionActorKey.adult(adultId);
+        List<Long> adultIds = snapshot.getAdultIds();
+        List<PositionActorKey> adultKeys = snapshot.getAdultKeys();
+        for(int adultIndex = 0; adultIndex < adultIds.size(); adultIndex++) {
+            long adultId = adultIds.get(adultIndex).longValue();
+            PositionActorKey actor = adultKeys.get(adultIndex);
             PositionResolution resolution = resolutions.get(actor);
             if(released.contains(actor)) {
                 if(resolution == null || resolution.getDisposition() !=

@@ -21,6 +21,11 @@ import java.util.Set;
  */
 public final class SpatialEcologyIndex implements SpatialEcologyView
 {
+    private static final int PREDATOR_BIT = 0x40;
+    private static final int SPECIES_MASK = 0x3F;
+    /** A cell code holds species index + 1 in six bits, so at most 63 species. */
+    private static final int MAX_SPECIES = SPECIES_MASK;
+
     private final int step;
     private final int depth;
     private final int width;
@@ -33,12 +38,20 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
     private final Map<String, Integer> offeredFoodBySpecies;
     private final int terrainPassableCellCount;
 
+    /** Species name to a small index (the order of the diet map). */
+    private final Map<String, Integer> speciesIndexByName;
+    /** The same names by index; callers pass the profile's own String, so == usually hits. */
+    private final String[] speciesNames;
+    /** Bit i is set when species {@code index} can eat the species with index i. */
+    private final long[] edibleMaskBySpecies;
+    /** Per cell: 0 when empty, else (species index + 1) with PREDATOR_BIT for predators. */
+    private final byte[] cellCode;
+
     /** (origin, range) pairs already charged to this step's ledger. */
-    private final Set<Long> topologySeen = new HashSet<>();
+    private final LongSet topologySeen;
     private final Map<ResourceKey, ReachableResourceFact> resourceCache =
         new HashMap<>();
-    private final Map<ResourceKey, LocalOccupancyFact> occupancyCache =
-        new HashMap<>();
+    private final OccupancyCache occupancyCache;
 
     private int resourceQueryCount;
     private int occupancyQueryCount;
@@ -65,6 +78,29 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
         Map<Long, SpatialAnimalFact> byId = new LinkedHashMap<>();
         passability = terrainMap.passability();
         factsByCell = new SpatialAnimalFact[depth * width];
+
+        List<String> speciesNames = new ArrayList<>(edibleSpeciesByProfile.keySet());
+        if(speciesNames.size() > MAX_SPECIES) {
+            throw new IllegalStateException("too many species for spatial cell codes");
+        }
+        speciesIndexByName = new HashMap<>();
+        for(int index = 0; index < speciesNames.size(); index++) {
+            speciesIndexByName.put(speciesNames.get(index), index);
+        }
+        this.speciesNames = speciesNames.toArray(new String[0]);
+        edibleMaskBySpecies = new long[speciesNames.size()];
+        for(int consumer = 0; consumer < speciesNames.size(); consumer++) {
+            for(String candidate : edibleSpeciesByProfile.get(speciesNames.get(consumer))) {
+                Integer candidateIndex = speciesIndexByName.get(candidate);
+                if(candidateIndex != null) {
+                    edibleMaskBySpecies[consumer] |= 1L << candidateIndex.intValue();
+                }
+            }
+        }
+        cellCode = new byte[depth * width];
+        occupancyCache = new OccupancyCache(sorted.size());
+        topologySeen = new LongSet(sorted.size());
+
         for(SpatialAnimalFact fact : sorted) {
             if(byId.put(fact.getId(), fact) != null) {
                 throw new IllegalStateException(
@@ -79,6 +115,13 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
                 throw new IllegalStateException("duplicate captured location: " + at);
             }
             factsByCell[cell] = fact;
+            Integer speciesIndex = speciesIndexByName.get(fact.getSpecies());
+            if(speciesIndex == null) {
+                throw new IllegalStateException(
+                    "captured animal species has no diet entry: " + fact.getSpecies());
+            }
+            cellCode[cell] = (byte)((speciesIndex.intValue() + 1) |
+                                    (fact.isPredator() ? PREDATOR_BIT : 0));
         }
         animalsById = Collections.unmodifiableMap(byId);
 
@@ -104,7 +147,7 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
         if(step < 0 || field == null || terrainMap == null ||
            field.getDepth() != terrainMap.getDepth() ||
            field.getWidth() != terrainMap.getWidth() ||
-           !field.hasConsistentState()) {
+           (RuntimeAudit.enabled() && !field.hasConsistentState())) {
             throw new IllegalArgumentException(
                 "consistent field and matching terrain are required");
         }
@@ -202,6 +245,66 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
         return factsByCell[location.row() * width + location.col()];
     }
 
+    /**
+     * Window scan over the one-byte cell codes: only a cell whose code matches the
+     * species and predator filters has its fact read, and no Location is built per cell.
+     */
+    @Override
+    public void forEachAnimalFactAround(Location origin, int radius, String species,
+                                        boolean predatorsOnly, AnimalFactSink sink)
+    {
+        if(origin == null) return;
+        int wantedSpecies = -1;
+        if(species != null) {
+            int index = speciesIndexOf(species);
+            if(index < 0) return; // every captured fact's species has an index
+            wantedSpecies = index + 1;
+        }
+        int firstRow = (int)Math.max(0L, (long)origin.row() - radius);
+        int lastRow = (int)Math.min(depth - 1L, (long)origin.row() + radius);
+        int firstCol = (int)Math.max(0L, (long)origin.col() - radius);
+        int lastCol = (int)Math.min(width - 1L, (long)origin.col() + radius);
+        for(int row = firstRow; row <= lastRow; row++) {
+            int base = row * width;
+            int end = base + lastCol + 1;
+            for(int cell = nextOccupied(base + firstCol, end); cell < end;
+                cell = nextOccupied(cell + 1, end)) {
+                int code = cellCode[cell];
+                if((wantedSpecies >= 0 && (code & SPECIES_MASK) != wantedSpecies) ||
+                   (predatorsOnly && (code & PREDATOR_BIT) == 0)) {
+                    continue;
+                }
+                sink.accept(factsByCell[cell]);
+            }
+        }
+    }
+
+    private static final java.lang.invoke.VarHandle CODE_WORDS =
+        java.lang.invoke.MethodHandles.byteArrayViewVarHandle(long[].class,
+            java.nio.ByteOrder.LITTLE_ENDIAN);
+
+    /**
+     * Index of the first occupied cell in {@code [from, end)}, or {@code end} when there is
+     * none. Most cells are empty, so eight cell codes are tested per step; the little-endian
+     * word keeps the lowest index in the lowest byte, so the scan order stays row-major.
+     */
+    private int nextOccupied(int from, int end)
+    {
+        int index = from;
+        while(index + 8 <= end) {
+            long word = (long)CODE_WORDS.get(cellCode, index);
+            if(word != 0L) {
+                return index + (Long.numberOfTrailingZeros(word) >>> 3);
+            }
+            index += 8;
+        }
+        while(index < end) {
+            if(cellCode[index] != 0) return index;
+            index++;
+        }
+        return end;
+    }
+
     @Override
     public synchronized ReachableResourceFact getReachableResources(
         Location origin, int range, SpeciesProfile profile)
@@ -264,35 +367,39 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
     public synchronized LocalOccupancyFact getLocalOccupancy(
         Location origin, int range, String profileKey)
     {
-        profileKey = requireQuery(origin, range, profileKey);
+        int focal = requireQueryIndex(origin, range, profileKey);
         occupancyQueryCount++;
-        ResourceKey key = new ResourceKey(copy(origin), range, profileKey);
-        LocalOccupancyFact cached = occupancyCache.get(key);
+        long key = ((long)origin.row() * width + origin.col()) * (MAX_SPECIES + 1) + focal;
+        LocalOccupancyFact cached = occupancyCache.get(key, range);
         if(cached != null) {
             resultCacheHitCount++;
             return cached;
         }
 
         TerrainPassabilityIndex.Window window = topology(origin, range);
-        Set<String> edibleSpecies = edibleSpeciesByProfile.get(profileKey);
+        long edibleMask = edibleMaskBySpecies[focal];
         int living = 0;
         int conspecific = 0;
         int predators = 0;
         int edible = 0;
         for(int row = window.firstRow; row < window.firstRow + window.localDepth; row++) {
-            for(int col = window.firstCol; col < window.firstCol + window.localWidth; col++) {
-                SpatialAnimalFact animal = factsByCell[row * width + col];
-                if(animal == null || window.distanceAt(row, col) < 0) continue;
+            int base = row * width;
+            int end = base + window.firstCol + window.localWidth;
+            for(int cell = nextOccupied(base + window.firstCol, end); cell < end;
+                cell = nextOccupied(cell + 1, end)) {
+                if(window.distanceAt(row, cell - base) < 0) continue;
+                int code = cellCode[cell];
                 living++;
-                if(profileKey.equals(animal.getSpecies())) conspecific++;
-                if(animal.isPredator()) predators++;
-                if(edibleSpecies.contains(animal.getSpecies())) edible++;
+                int species = (code & SPECIES_MASK) - 1;
+                if(species == focal) conspecific++;
+                if((code & PREDATOR_BIT) != 0) predators++;
+                if(((edibleMask >>> species) & 1L) != 0L) edible++;
             }
         }
         LocalOccupancyFact result = new LocalOccupancyFact(origin, range,
             profileKey, window.reachableCount, living, conspecific,
             predators, edible);
-        occupancyCache.put(key, result);
+        occupancyCache.put(key, range, result);
         return result;
     }
 
@@ -331,22 +438,172 @@ public final class SpatialEcologyIndex implements SpatialEcologyView
     private String requireQuery(Location origin, int range,
                                 String profileKey)
     {
+        requireQueryIndex(origin, range, profileKey);
+        return profileKey;
+    }
+
+    /** Validates a query and returns the small index of its focal species. */
+    private int requireQueryIndex(Location origin, int range, String profileKey)
+    {
+        int index = -1;
         if(origin == null || range < 0 || profileKey == null ||
            origin.row() < 0 || origin.row() >= depth ||
            origin.col() < 0 || origin.col() >= width ||
-           !edibleSpeciesByProfile.containsKey(profileKey)) {
+           (index = speciesIndexOf(profileKey)) < 0) {
             throw new IllegalArgumentException(
                 "known profile, origin, and non-negative range are required");
         }
-        return profileKey;
+        return index;
+    }
+
+    /** Index of a species name, or -1: an identity scan of the few names, then the map. */
+    private int speciesIndexOf(String name)
+    {
+        for(int index = 0; index < speciesNames.length; index++) {
+            if(speciesNames[index] == name) return index;
+        }
+        Integer index = speciesIndexByName.get(name);
+        return index == null ? -1 : index.intValue();
     }
 
     private static Location copy(Location location)
     {
-        return new Location(location.row(), location.col());
+        return java.util.Objects.requireNonNull(location);
     }
 
     private record ResourceKey(Location origin, int range, String profileKey)
     {
+    }
+
+    private static int mix(long key, int range)
+    {
+        long z = key * 0x9E3779B97F4A7C15L ^ (long)range * 0xC2B2AE3D27D4EB4FL;
+        z ^= z >>> 32;
+        z *= 0x9E3779B97F4A7C15L;
+        return (int)(z >>> 32);
+    }
+
+    private static int tableSize(int expected)
+    {
+        int size = 64;
+        while(size < expected * 2L) size <<= 1;
+        return size;
+    }
+
+    /**
+     * Open-addressing cache of occupancy facts keyed by (cell and species, range).
+     * It is never iterated and never removes an entry; only get, put and size exist.
+     */
+    private static final class OccupancyCache
+    {
+        private long[] keys;
+        private int[] ranges;
+        private LocalOccupancyFact[] values;
+        private int size;
+
+        OccupancyCache(int expectedEntries)
+        {
+            allocate(tableSize(expectedEntries));
+        }
+
+        int size() { return size; }
+
+        LocalOccupancyFact get(long key, int range)
+        {
+            int mask = keys.length - 1;
+            int slot = mix(key, range) & mask;
+            while(true) {
+                LocalOccupancyFact value = values[slot];
+                if(value == null) return null;
+                if(keys[slot] == key && ranges[slot] == range) return value;
+                slot = (slot + 1) & mask;
+            }
+        }
+
+        /** The caller has just seen {@code get} miss, so the key is not present. */
+        void put(long key, int range, LocalOccupancyFact value)
+        {
+            if((size + 1) * 2 > keys.length) grow();
+            insert(key, range, value);
+            size++;
+        }
+
+        private void insert(long key, int range, LocalOccupancyFact value)
+        {
+            int mask = keys.length - 1;
+            int slot = mix(key, range) & mask;
+            while(values[slot] != null) slot = (slot + 1) & mask;
+            keys[slot] = key;
+            ranges[slot] = range;
+            values[slot] = value;
+        }
+
+        private void grow()
+        {
+            long[] oldKeys = keys;
+            int[] oldRanges = ranges;
+            LocalOccupancyFact[] oldValues = values;
+            allocate(oldKeys.length * 2);
+            for(int slot = 0; slot < oldKeys.length; slot++) {
+                if(oldValues[slot] != null) {
+                    insert(oldKeys[slot], oldRanges[slot], oldValues[slot]);
+                }
+            }
+        }
+
+        private void allocate(int capacity)
+        {
+            keys = new long[capacity];
+            ranges = new int[capacity];
+            values = new LocalOccupancyFact[capacity];
+        }
+    }
+
+    /** Open-addressing set of non-negative longs (stored as key + 1; 0 means empty). */
+    private static final class LongSet
+    {
+        private long[] slots;
+        private int size;
+
+        LongSet(int expectedEntries)
+        {
+            slots = new long[tableSize(expectedEntries)];
+        }
+
+        int size() { return size; }
+
+        /** @return true when the key was not yet present. */
+        boolean add(long key)
+        {
+            long stored = key + 1;
+            int mask = slots.length - 1;
+            int slot = mix(stored, 0) & mask;
+            while(slots[slot] != 0L) {
+                if(slots[slot] == stored) return false;
+                slot = (slot + 1) & mask;
+            }
+            if((size + 1) * 2 > slots.length) {
+                grow();
+                mask = slots.length - 1;
+                slot = mix(stored, 0) & mask;
+                while(slots[slot] != 0L) slot = (slot + 1) & mask;
+            }
+            slots[slot] = stored;
+            size++;
+            return true;
+        }
+
+        private void grow()
+        {
+            long[] old = slots;
+            slots = new long[old.length * 2];
+            int mask = slots.length - 1;
+            for(long stored : old) {
+                if(stored == 0L) continue;
+                int slot = mix(stored, 0) & mask;
+                while(slots[slot] != 0L) slot = (slot + 1) & mask;
+                slots[slot] = stored;
+            }
+        }
     }
 }

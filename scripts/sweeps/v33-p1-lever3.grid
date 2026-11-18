@@ -1,0 +1,4 @@
+# v3.3 P-1 lever 3: grass gate on births, Gazelle only
+base init.lion=0,init.cheetah=0,repro.grassGate=1,repro.grassGateSpecies=1
+axis repro.grassMin=0.15,0.25,0.35
+axis repro.grassMax=0.6,0.8

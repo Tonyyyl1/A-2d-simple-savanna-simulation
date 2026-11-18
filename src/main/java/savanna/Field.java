@@ -1,10 +1,10 @@
 package savanna;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,7 +20,8 @@ public class Field
 {
     private final int depth;
     private final int width;
-    private final Map<Location, Animal> field;
+    /** One slot per cell, row * width + col; a slot holds the animal that owns the cell. */
+    private final Animal[] cells;
     private final List<Animal> animals;
     /**
      * Identity-to-cell ledger used to update an already placed animal without
@@ -33,7 +34,7 @@ public class Field
     {
         this.depth = depth;
         this.width = width;
-        field = new HashMap<>();
+        cells = new Animal[depth * width];
         animals = new ArrayList<>();
         locationsByAnimal = new HashMap<>();
     }
@@ -65,7 +66,8 @@ public class Field
            location.col() < 0 || location.col() >= width) {
             return false;
         }
-        Animal other = field.get(location);
+        int cell = location.row() * width + location.col();
+        Animal other = cells[cell];
         if(other != null && other != anAnimal && other.isAlive()) {
             return false;
         }
@@ -75,9 +77,9 @@ public class Field
         }
         Location previous = locationsByAnimal.get(anAnimal);
         if(previous != null && !previous.equals(location)) {
-            field.remove(previous, anAnimal);
+            clearCell(previous, anAnimal);
         }
-        field.put(location, anAnimal);
+        cells[cell] = anAnimal;
         if(previous == null) {
             animals.add(anAnimal);
         }
@@ -91,7 +93,24 @@ public class Field
      */
     public Animal getAnimalAt(Location location)
     {
-        return field.get(location);
+        if(location == null || location.row() < 0 || location.row() >= depth ||
+           location.col() < 0 || location.col() >= width) {
+            return null;
+        }
+        return cells[location.row() * width + location.col()];
+    }
+
+    /** Empties the cell of {@code location} when it is still owned by {@code animal}. */
+    private void clearCell(Location location, Animal animal)
+    {
+        if(location.row() < 0 || location.row() >= depth ||
+           location.col() < 0 || location.col() >= width) {
+            return;
+        }
+        int cell = location.row() * width + location.col();
+        if(cells[cell] == animal) {
+            cells[cell] = null;
+        }
     }
 
     /**
@@ -121,7 +140,7 @@ public class Field
         List<Location> free = new LinkedList<>();
         List<Location> nearby = getLocationsWithin(location, range, rand);
         for(Location next : nearby) {
-            Animal anAnimal = field.get(next);
+            Animal anAnimal = getAnimalAt(next);
             if(anAnimal == null || !anAnimal.isAlive()) {
                 free.add(next);
             }
@@ -196,16 +215,26 @@ public class Field
      */
     public Map<String, Integer> countLivingBySpecies()
     {
-        Map<String, Integer> counts = new LinkedHashMap<>();
-        for(Animal anAnimal : field.values()) {
+        // Counted from the animal list (never by scanning the cells). The result lists the
+        // registered species in registry order, then any other species in the order it
+        // was first met; a species with no living animal is absent.
+        Map<String, Integer> found = new LinkedHashMap<>();
+        for(Animal anAnimal : animals) {
             if(anAnimal instanceof SavannahAnimal) {
                 SavannahAnimal animal = (SavannahAnimal)anAnimal;
                 if(animal.isAlive()) {
                     String name = animal.getProfile().getName();
-                    counts.put(name, counts.getOrDefault(name, 0) + 1);
+                    found.put(name, found.getOrDefault(name, 0) + 1);
                 }
             }
         }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
+            String name = factory.getProfile().getName();
+            Integer count = found.remove(name);
+            if(count != null) counts.put(name, count);
+        }
+        counts.putAll(found);
         return counts;
     }
 
@@ -228,7 +257,7 @@ public class Field
      */
     public void clear()
     {
-        field.clear();
+        Arrays.fill(cells, null);
         animals.clear();
         locationsByAnimal.clear();
     }
@@ -242,10 +271,15 @@ public class Field
             animals.remove(animal);
             Location location = locationsByAnimal.remove(animal);
             if(location != null) {
-                field.remove(location, animal);
+                clearCell(location, animal);
             }
             else {
-                field.values().remove(animal);
+                for(int cell = 0; cell < cells.length; cell++) {
+                    if(cells[cell] == animal) {
+                        cells[cell] = null;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -255,12 +289,13 @@ public class Field
      */
     public void removeDeadAnimals()
     {
-        Iterator<Map.Entry<Location, Animal>> entries = field.entrySet().iterator();
-        while(entries.hasNext()) {
-            Map.Entry<Location, Animal> entry = entries.next();
-            if(!entry.getValue().isAlive()) {
-                locationsByAnimal.remove(entry.getValue());
-                entries.remove();
+        // A dead animal has no location of its own, so its cell comes from the ledger.
+        for(Animal animal : animals) {
+            if(!animal.isAlive()) {
+                Location location = locationsByAnimal.remove(animal);
+                if(location != null) {
+                    clearCell(location, animal);
+                }
             }
         }
         animals.removeIf(animal -> !animal.isAlive());
@@ -289,32 +324,45 @@ public class Field
         return new ArrayList<>(animals);
     }
 
-    /** Verify the map, list, alive state, and animal locations agree. */
+    /**
+     * Verify the cells, list, alive state, and animal locations agree. The cells and
+     * the list are each walked once; the list must name every occupied cell exactly once.
+     */
     public boolean hasConsistentState()
     {
-        Set<Animal> mappedAnimals = new HashSet<>();
-        for(Map.Entry<Location, Animal> entry : field.entrySet()) {
-            Animal animal = entry.getValue();
-            if(animal == null || !animal.isAlive() ||
-               !entry.getKey().equals(animal.getLocation()) ||
-               !mappedAnimals.add(animal)) {
+        int occupied = 0;
+        for(int cell = 0; cell < cells.length; cell++) {
+            Animal animal = cells[cell];
+            if(animal == null) continue;
+            Location location = animal.getLocation();
+            if(!animal.isAlive() || location == null ||
+               !isInside(location) || location.row() * width + location.col() != cell) {
                 return false;
             }
+            occupied++;
         }
-        Set<Animal> listedAnimals = new HashSet<>(animals);
-        if(listedAnimals.size() != animals.size() ||
-           !listedAnimals.equals(mappedAnimals) ||
-           locationsByAnimal.size() != mappedAnimals.size() ||
-           !locationsByAnimal.keySet().equals(mappedAnimals)) {
+        if(animals.size() != occupied || locationsByAnimal.size() != occupied) {
             return false;
         }
+        BitSet listedCells = new BitSet(cells.length);
         for(Animal animal : animals) {
-            if(animal == null || !animal.isAlive() ||
-               !animal.getLocation().equals(locationsByAnimal.get(animal))) {
+            if(animal == null || !animal.isAlive()) return false;
+            Location location = animal.getLocation();
+            if(location == null || !isInside(location)) return false;
+            int cell = location.row() * width + location.col();
+            if(cells[cell] != animal || listedCells.get(cell) ||
+               !location.equals(locationsByAnimal.get(animal))) {
                 return false;
             }
+            listedCells.set(cell);
         }
         return true;
+    }
+
+    private boolean isInside(Location location)
+    {
+        return location.row() >= 0 && location.row() < depth &&
+               location.col() >= 0 && location.col() < width;
     }
 
     public int getDepth()

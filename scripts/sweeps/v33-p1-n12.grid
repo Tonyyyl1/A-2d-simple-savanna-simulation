@@ -1,0 +1,19 @@
+# v3.3 P-1 round 3 (N1 thin-grass bites + refuge, N2 condition-gated conception; L1, no predators)
+base init.lion=0,init.cheetah=0
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.05
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.1
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.2
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.05
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.2
+candidate repro.herbivoreConditionMin=0.3
+candidate repro.herbivoreConditionMin=0.45
+candidate repro.herbivoreConditionMin=0.6
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.1,repro.herbivoreConditionMin=0.3
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.1,repro.herbivoreConditionMin=0.45
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.2,repro.herbivoreConditionMin=0.3
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.2,repro.herbivoreConditionMin=0.45
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1,repro.herbivoreConditionMin=0.3
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1,repro.herbivoreConditionMin=0.45
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.2,repro.herbivoreConditionMin=0.3
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.2,repro.herbivoreConditionMin=0.45

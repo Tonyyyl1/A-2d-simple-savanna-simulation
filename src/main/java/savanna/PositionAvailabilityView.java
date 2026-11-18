@@ -1,13 +1,11 @@
 package savanna;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Random;
 
 /**
@@ -79,8 +77,7 @@ public final class PositionAvailabilityView
         PositionCandidateObservationPhase phase, long actorId, Location origin,
         Random random)
     {
-        List<Location> result = new ArrayList<>(
-            topology.getAdjacentPassable(origin));
+        List<Location> result = topology.newAdjacentPassableList(origin);
         int passableCount = result.size();
         int snapshotOccupiedCount = 0;
         int reservedForOtherCount = 0;
@@ -119,27 +116,49 @@ public final class PositionAvailabilityView
         if(origin == null || range <= 0 || !topology.isPassable(origin)) {
             return Collections.emptyList();
         }
-        Queue<Location> pending = new ArrayDeque<>();
-        Map<Location, Integer> distances = new HashMap<>();
+        // Breadth-first over the passable cells within `range` steps. Every cell it can
+        // reach lies in the origin's (2 * range + 1)-square, clamped to the field, so the
+        // distances live in a window of that size: 0 = not reached yet, else distance + 1.
+        // The result is in discovery order (FIFO queue, neighbours in topology order).
+        int firstRow = Math.max(0, origin.row() - range);
+        int firstCol = Math.max(0, origin.col() - range);
+        int rows = (int)Math.min(topology.getDepth() - 1L,
+            origin.row() + (long)range) - firstRow + 1;
+        int cols = (int)Math.min(topology.getWidth() - 1L,
+            origin.col() + (long)range) - firstCol + 1;
+        int[] reached = new int[rows * cols];
+        Location[] pending = new Location[rows * cols];
+        int head = 0;
+        int tail = 0;
         List<Location> result = new ArrayList<>();
-        pending.add(copy(origin));
-        distances.put(copy(origin), Integer.valueOf(0));
-        while(!pending.isEmpty()) {
-            Location current = pending.remove();
-            int distance = distances.get(current).intValue();
+        // asked once: the answer cannot change inside one step, and the loop below is hot
+        final boolean audit = RuntimeAudit.enabled();
+        pending[tail++] = copy(origin);
+        reached[(origin.row() - firstRow) * cols + (origin.col() - firstCol)] = 1;
+        while(head < tail) {
+            Location current = pending[head++];
+            int distance = reached[(current.row() - firstRow) * cols +
+                                   (current.col() - firstCol)] - 1;
             if(distance >= range) {
                 continue;
             }
             for(Location neighbor : topology.getAdjacentPassable(current)) {
-                if(distances.containsKey(neighbor)) {
+                if(audit &&
+                   (neighbor.row() < firstRow || neighbor.row() >= firstRow + rows ||
+                    neighbor.col() < firstCol || neighbor.col() >= firstCol + cols)) {
+                    throw new IllegalStateException(
+                        "reachable-candidate neighbour outside its distance window: " +
+                        neighbor + " from " + origin + " range " + range);
+                }
+                int slot = (neighbor.row() - firstRow) * cols +
+                           (neighbor.col() - firstCol);
+                if(reached[slot] != 0) {
                     continue;
                 }
-                int nextDistance = distance + 1;
-                distances.put(neighbor, Integer.valueOf(nextDistance));
-                pending.add(neighbor);
-                if(nextDistance > 0 && nextDistance <= range) {
-                    result.add(neighbor);
-                }
+                reached[slot] = distance + 2;
+                pending[tail++] = neighbor;
+                // distance < range, so the neighbour is 1..range steps away.
+                result.add(neighbor);
             }
         }
         if(random != null) {
@@ -150,7 +169,7 @@ public final class PositionAvailabilityView
 
     public boolean isSnapshotOccupied(Location location)
     {
-        return snapshot.ownerAt(location) != null;
+        return snapshot.isOccupied(location);
     }
 
     public boolean reservedForOther(Location location, long actorId)
@@ -178,6 +197,6 @@ public final class PositionAvailabilityView
 
     private static Location copy(Location location)
     {
-        return new Location(location.row(), location.col());
+        return java.util.Objects.requireNonNull(location);
     }
 }

@@ -7,7 +7,16 @@ public class HabitatPreferences
     public static double spawnModifier(SpeciesProfile profile,
                                        TerrainType terrain)
     {
-        String species = profile.getName();
+        return profile.habitatSpawnModifier(terrain);
+    }
+
+    /**
+     * The habitat score of a species name on a terrain. Profiles call this once per
+     * terrain when they build their lookup row, so the name comparisons below run
+     * only then.
+     */
+    static double computeSpawnModifier(String species, TerrainType terrain)
+    {
         if(SpeciesRegistry.LION.equals(species)) {
             return score(terrain, 0.0, 1.10, 1.65, 0.85, 0.70);
         }
