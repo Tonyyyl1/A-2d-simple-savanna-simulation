@@ -53,6 +53,10 @@ public class SimulationContext
     private Map<String, Integer> populationSnapshot;
     private Map<String, Integer> livePopulationBySpecies;
     private Field currentStepField;
+    private List<SavannahAnimal> stepPredatorList;
+    /** Per-cell table reused by every step's position resolution; empty between steps. */
+    private final PurePositionReservationResolver.Scratch positionResolverScratch =
+        new PurePositionReservationResolver.Scratch();
     private final Set<Long> committedBirthPopulationIds = new java.util.HashSet<>();
     private int step;
     private final List<TransitionObservationListener> transitionListeners =
@@ -117,6 +121,7 @@ public class SimulationContext
         if(field == null) throw new IllegalArgumentException("step field is required");
         this.step = step;
         currentStepField = field;
+        stepPredatorList = null;
         eventJournal.startStep(step);
         clock.setStep(step);
         weatherSystem.update(this);
@@ -168,18 +173,40 @@ public class SimulationContext
         return true;
     }
 
+    PurePositionReservationResolver.Scratch getPositionResolverScratch()
+    {
+        return positionResolverScratch;
+    }
+
     private void invalidateTargetsForDeadAnimal(long deadAnimalId)
     {
         if(currentStepField == null) return;
-        for(Animal candidate : currentStepField.getAnimals()) {
-            if(candidate instanceof SavannahAnimal) {
-                SavannahAnimal hunter = (SavannahAnimal)candidate;
-                if(hunter.getProductionTarget().targets(deadAnimalId)) {
-                    hunter.invalidateProductionTarget(
-                        ProductionTargetState.Status.TARGET_DEAD);
-                }
+        // Only predators ever hold a HUNT_PREY target (acquireHuntTarget runs after the
+        // isPredator() guard in HUNT), so the ~160 predators are scanned instead of a fresh
+        // copy of the whole animal list for every death. Same order as the full list.
+        for(SavannahAnimal hunter : stepPredators()) {
+            if(hunter.getProductionTarget().targets(deadAnimalId)) {
+                hunter.invalidateProductionTarget(
+                    ProductionTargetState.Status.TARGET_DEAD);
             }
         }
+    }
+
+    /** The current step field's predators, captured on the first death of the step. */
+    private List<SavannahAnimal> stepPredators()
+    {
+        List<SavannahAnimal> predators = stepPredatorList;
+        if(predators == null) {
+            predators = new ArrayList<>();
+            for(Animal candidate : currentStepField.getAnimals()) {
+                if(candidate instanceof SavannahAnimal &&
+                   ((SavannahAnimal)candidate).getProfile().isPredator()) {
+                    predators.add((SavannahAnimal)candidate);
+                }
+            }
+            stepPredatorList = predators;
+        }
+        return predators;
     }
 
     public int getDeathCount(DeathCause cause)
@@ -445,9 +472,9 @@ public class SimulationContext
             return;
         }
         List<SavannahAnimal> dependents = new ArrayList<>();
-        for(Animal animal : currentStepField.getAnimals()) {
-            if(!(animal instanceof SavannahAnimal)) continue;
-            SavannahAnimal young = (SavannahAnimal)animal;
+        // isDependentOf() requires a predator, so only the step's predators can qualify;
+        // the result is sorted by id below, so the scan order does not matter.
+        for(SavannahAnimal young : stepPredators()) {
             Location location = young.getLocation();
             if(young.isDependentOf(mother) && location != null &&
                Math.max(Math.abs(location.row() - mother.getLocation().row()),
@@ -701,11 +728,11 @@ public class SimulationContext
                 continue;
             }
             long id = animal.getId();
-            PositionResolution resolution = plan.getResolution(
-                PositionActorKey.adult(id));
+            PositionActorKey key = ((SavannahAnimal)animal).getPositionActorKey();
+            PositionResolution resolution = plan.getResolution(key);
             if(resolution != null && resolution.isCommitted()) {
                 positionWaitingDebt.put(Long.valueOf(id), Integer.valueOf(
-                    plan.nextWaitingDebtFor(PositionActorKey.adult(id))));
+                    plan.nextWaitingDebtFor(key)));
             }
         }
     }

@@ -1,0 +1,4 @@
+# v3.3 P-2 round 2: 20000 steps (round 1 at 10000 steps missed the Lion decline in the second half). Round 1: territory.lion 6/10 makes Lion boom (300-700, target 100, limit 200); default 3 decays to 16-50 by 20000 steps; Cheetah breedingProbability 0.04 -> mean 111-160, 0.03 -> 28-80 (target 60, limit 120).
+candidate territory.lion=4,species.cheetah.breedingProbability=0.035
+candidate territory.lion=5,species.cheetah.breedingProbability=0.035
+candidate species.lion.breedingProbability=0.02,species.cheetah.breedingProbability=0.035

@@ -1,0 +1,4 @@
+# v3.3 P-1 lever 1: Gazelle reproductive potential (L1: no predators)
+base init.lion=0,init.cheetah=0
+axis species.gazelle.breedingProbability=0.05,0.064,0.09
+axis species.gazelle.maxLitterSize=1,2

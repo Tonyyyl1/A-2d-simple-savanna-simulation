@@ -216,6 +216,7 @@ public class Simulator
     public void simulateOneStep()
     {
         step++;
+        RuntimeAudit.beginStep(step);
         context.startStep(step, field);
 
         PositionStepCoordinator positions = new PositionStepCoordinator(field,
@@ -231,7 +232,7 @@ public class Simulator
         }
         Field nextFieldState = positions.resolveAndCommitCompleteStep();
         nextFieldState.removeDeadAnimals();
-        if(!nextFieldState.hasConsistentState()) {
+        if(RuntimeAudit.enabled() && !nextFieldState.hasConsistentState()) {
             throw new IllegalStateException(
                 "Field transition produced inconsistent animal state at step " + step);
         }

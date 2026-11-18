@@ -1,0 +1,5 @@
+# v3.3 P-2 round 1 (new P-1 defaults, L4): Lion too few (mean 16-50, min 13-24, troughs 5), Cheetah too many (mean ~180 vs target 60). Lion and Cheetah levers are paired because their metrics are separate columns.
+candidate territory.lion=6,species.cheetah.breedingProbability=0.04
+candidate territory.lion=10,species.cheetah.breedingProbability=0.03
+candidate territory.lion=6,predation.cheetahInterference=2.0
+candidate species.lion.breedingProbability=0.02,territory.cheetah=1

@@ -35,14 +35,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  * JVM with {@code --diag}; its log lands in {@code runs/} under a name built
  * from hash, seed, steps and thirst, and an existing complete log is reused,
  * so an interrupted sweep continues where it stopped. {@code ECO_JOBS} (or
- * {@code --jobs}, default 3) sets the parallelism. Every run JVM is capped
- * with {@code -Xmx} from {@code ECO_XMX} (default 1g) and the parallel
- * collector on one GC thread, about 1.2 GB and one core each (the serial
+ * {@code --jobs}, default 4) sets the parallelism. Every run JVM is capped
+ * with {@code -Xmx} from {@code ECO_XMX} (default 768m) and the parallel
+ * collector on one GC thread, about 0.9 GB and one core each (verified for the
+ * S3 kernel only; the unmerged baseline kernel needs 1g x 3; the serial
  * collector spent 40-47% of a heavy run in full GCs; one-thread parallel
  * was the fastest of four settings tried): an uncapped JVM defaults to a
  * quarter of physical memory, and eight of them exhausted a 16 GB machine.</p>
  *
- * <p>Ranking, best first: fewer extinct runs; larger smallest final species
+ * <p>Ranking, best first: fewer extinct runs; smaller worst herbivore
+ * {@code lnSdRun} (P-0; zero for logs without it, so older sweeps rank as
+ * before); larger smallest final species
  * count over all runs; later mean extinction step (ties among extinct
  * candidates); smaller worst normalized balance (C-0) excess over 12 among the surviving runs
  * (extinct runs are already counted); smaller worst hotspot span excess over
@@ -70,7 +73,7 @@ public final class EcologySweep
         int steps = 1000;
         String[] seeds = {"1111", "2111"};
         String[] thirsts = {"off", "on"};
-        int jobs = parsePositive(System.getenv().getOrDefault("ECO_JOBS", "3"), "ECO_JOBS");
+        int jobs = parsePositive(System.getenv().getOrDefault("ECO_JOBS", "4"), "ECO_JOBS");
         boolean rankOnly = false;
         for(int index = 2; index < args.length; index++) {
             String option = args[index];
@@ -205,7 +208,8 @@ public final class EcologySweep
             if(RunResult.read(spec) == null) pending.add(spec);
         }
         System.out.println("SWEEP pending=" + pending.size() + " reused=" +
-            (specs.size() - pending.size()) + " jobs=" + jobs);
+            (specs.size() - pending.size()) + " jobs=" + jobs + " audit=" + auditMode() +
+            " xmx=" + System.getenv().getOrDefault("ECO_XMX", "768m"));
         ExecutorService pool = Executors.newFixedThreadPool(jobs);
         AtomicInteger done = new AtomicInteger();
         List<Future<?>> futures = new ArrayList<>();
@@ -221,14 +225,21 @@ public final class EcologySweep
         for(Future<?> future : futures) future.get();
     }
 
+    /** Audit mode of the run JVMs: {@code every:50} unless {@code ECO_AUDIT} says otherwise (on, off, every:N). */
+    private static String auditMode()
+    {
+        return System.getenv().getOrDefault("ECO_AUDIT", "every:50");
+    }
+
     private static String runOne(RunSpec spec) throws IOException, InterruptedException
     {
         List<String> command = new ArrayList<>();
         command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
         command.add("-Djava.awt.headless=true");
-        command.add("-Xmx" + System.getenv().getOrDefault("ECO_XMX", "1g"));
+        command.add("-Xmx" + System.getenv().getOrDefault("ECO_XMX", "768m"));
         command.add("-XX:+UseParallelGC");
         command.add("-XX:ParallelGCThreads=1");
+        command.add("-Dsavanna.audit=" + auditMode());
         command.add("-cp");
         command.add(System.getProperty("java.class.path"));
         command.add(EcologyMatrixRunner.class.getName());
@@ -255,7 +266,8 @@ public final class EcologySweep
     {
         StringBuilder csv = new StringBuilder("hash,seed,steps,thirst,completed,extinctionStep," +
             "extinctSpecies,minFinal,balance,maxOverloadSpan,regionLedger,gate," +
-            "lion,cheetah,zebra,buffalo,gazelle,overrides,balanceMean,means,lnSd,balanceNorm\n");
+            "lion,cheetah,zebra,buffalo,gazelle,overrides,balanceMean,means,lnSd,balanceNorm," +
+            "lnSdRun,troughs,femMin,starveShare\n");
         for(RunResult result : results) {
             csv.append(result.spec.parameters.hash()).append(',').append(result.spec.seed)
                 .append(',').append(result.spec.steps).append(',').append(result.spec.thirst)
@@ -271,7 +283,11 @@ public final class EcologySweep
                 .append(format(result.balanceMean))
                 .append(',').append(result.means.replace(',', ';'))
                 .append(',').append(result.lnSd.replace(',', ';'))
-                .append(',').append(format(result.balanceNorm)).append('\n');
+                .append(',').append(format(result.balanceNorm))
+                .append(',').append(result.lnSdRun.replace(',', ';'))
+                .append(',').append(result.troughs.replace(',', ';'))
+                .append(',').append(result.femMin.replace(',', ';'))
+                .append(',').append(result.starveShare.replace(',', ';')).append('\n');
         }
         Files.writeString(file, csv.toString(), StandardCharsets.UTF_8);
     }
@@ -291,15 +307,15 @@ public final class EcologySweep
         StringBuilder text = new StringBuilder();
         text.append(String.format(Locale.ROOT, "%-4s %-12s %4s %5s %6s %8s %9s %7s %4s  %s%n",
             "rank", "hash", "runs", "extinct", "minFin", "meanExt", "survBal", "maxSpan",
-            "pass", "overrides"));
+            "pass", "herbSd  overrides"));
         int rank = 1;
         for(Score score : scores) {
-            text.append(String.format(Locale.ROOT, "%-4d %-12s %2d/%-2d %5d %6d %8s %9s %7d %4d  %s%n",
+            text.append(String.format(Locale.ROOT, "%-4d %-12s %2d/%-2d %5d %6d %8s %9s %7d %4d  %-6s %s%n",
                 rank++, score.parameters.hash(), score.runs, runsPerCandidate, score.extinct,
                 score.minFinal, score.extinct == 0 ? "-" :
                     String.format(Locale.ROOT, "%.0f", score.meanExtinctionStep()),
                 format(score.survivingBalance()), score.worstSpan, score.passes,
-                score.parameters.overrides()));
+                format(score.worstHerbivoreSd), score.parameters.overrides()));
         }
         return text.toString();
     }
@@ -364,6 +380,11 @@ public final class EcologySweep
         /** A-5 windowed means and ln-sd, species:value pairs; "-" in older logs. */
         final String means;
         final String lnSd;
+        /** P-0 fields; "-" in older logs. */
+        final String lnSdRun;
+        final String troughs;
+        final String femMin;
+        final String starveShare;
         /** C-0 normalized balance (older logs fall back to the windowed-mean balance). */
         final double balanceNorm;
         /** Species that took part in the run (C-0); empty in older logs, meaning all. */
@@ -392,6 +413,10 @@ public final class EcologySweep
             gate = fields.get("gate");
             means = fields.getOrDefault("means", "-");
             lnSd = fields.getOrDefault("lnSd", "-");
+            lnSdRun = fields.getOrDefault("lnSdRun", "-");
+            troughs = fields.getOrDefault("troughs", "-");
+            femMin = fields.getOrDefault("femMin", "-");
+            starveShare = fields.getOrDefault("starveShare", "-");
             String rawNorm = fields.getOrDefault("balanceNorm", rawMean);
             balanceNorm = "inf".equals(rawNorm) ? Double.POSITIVE_INFINITY
                 : Double.parseDouble(rawNorm);
@@ -425,6 +450,27 @@ public final class EcologySweep
             return null;
         }
 
+        /** Largest whole-run lnSd over the herbivores; 0 when the log has none. */
+        double herbivoreSdRun()
+        {
+            double worst = 0.0;
+            for(String entry : lnSdRun.split(",")) {
+                int colon = entry.indexOf(':');
+                if(colon < 0) continue;
+                String species = entry.substring(0, colon);
+                SpeciesProfile profile = SpeciesRegistry.getProfile(species);
+                if(profile == null || profile.isPredator()) continue;
+                if(!participants.isEmpty() && !participants.contains(species)) continue;
+                try {
+                    worst = Math.max(worst, Double.parseDouble(entry.substring(colon + 1)));
+                }
+                catch(NumberFormatException e) {
+                    // "-" or malformed: no measure for this species
+                }
+            }
+            return worst;
+        }
+
         boolean extinct()
         {
             return extinctionStep >= 0 || completed < spec.steps;
@@ -454,6 +500,7 @@ public final class EcologySweep
     {
         static final Comparator<Score> ORDER = Comparator
             .comparingInt((Score score) -> score.extinct)
+            .thenComparingDouble(score -> score.worstHerbivoreSd)
             .thenComparing(Comparator.comparingInt((Score score) -> score.minFinal).reversed())
             .thenComparing(Comparator.comparingDouble(Score::meanExtinctionStep).reversed())
             .thenComparingDouble(score -> Math.max(0.0, score.survivingBalance() - BALANCE_LIMIT))
@@ -469,6 +516,8 @@ public final class EcologySweep
         /** Worst balance among the surviving runs; infinite when none survived. */
         double worstBalance;
         int worstSpan;
+        /** P-0: worst whole-run herbivore lnSd over the runs of this candidate. */
+        double worstHerbivoreSd;
 
         Score(EcologyParameters parameters)
         {
@@ -495,6 +544,7 @@ public final class EcologySweep
             if("PASS".equals(result.gate)) passes++;
             minFinal = Math.min(minFinal, result.minFinal());
             worstSpan = Math.max(worstSpan, result.span);
+            worstHerbivoreSd = Math.max(worstHerbivoreSd, result.herbivoreSdRun());
         }
 
         /** Mean extinction step of the extinct runs; candidates without any rank first. */

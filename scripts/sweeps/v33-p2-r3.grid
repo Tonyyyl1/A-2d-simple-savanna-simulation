@@ -1,0 +1,4 @@
+# v3.3 P-2 round 3 (20000 steps): Lion fixed at territory.lion=4 (round 2: mean 129-198, min 79-86, balanceNorm 2.2-4.2). Cheetah still too many (mean 132-186, limit 120) with breedingProbability 0.035; try lower births and stronger interference.
+candidate territory.lion=4,species.cheetah.breedingProbability=0.025
+candidate territory.lion=4,species.cheetah.breedingProbability=0.035,predation.cheetahInterference=2.0
+candidate territory.lion=4,species.cheetah.breedingProbability=0.03,predation.cheetahInterference=1.5

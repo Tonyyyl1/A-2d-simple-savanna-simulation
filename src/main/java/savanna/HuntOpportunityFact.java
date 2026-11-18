@@ -38,14 +38,14 @@ public final class HuntOpportunityFact
     private final int step;
     private final long actorId;
     private final String frameId;
-    private final String opportunityId;
+    private String opportunityId;
     private final String actorSpecies;
     private final Sex actorSex;
     private final LifeStage actorLifeStage;
     private final AnimalPhysiologyFact capturePhysiology;
     private final Location origin;
     private final int effectiveRange;
-    private final String candidateDigest;
+    private String candidateDigest;
     private final List<Location> searchLocations;
     private final List<CandidateFact> candidates;
     private final Map<Location, CandidateFact> candidatesByLocation;
@@ -83,10 +83,6 @@ public final class HuntOpportunityFact
             }
         }
         candidatesByLocation = Collections.unmodifiableMap(indexed);
-        candidateDigest = digestCandidates(candidates);
-        opportunityId = sha256(actorId + "|" + step + "|" + frameId + "|" +
-            origin.row() + ',' + origin.col() + "|" + effectiveRange + "|" +
-            candidateDigest + "|" + candidates.size());
     }
 
     /** Capture one deterministic, RNG-free S0 fact from the shared geometry. */
@@ -190,7 +186,15 @@ public final class HuntOpportunityFact
     public int getStep() { return step; }
     public long getActorId() { return actorId; }
     public String getFrameId() { return frameId; }
-    public String getOpportunityId() { return opportunityId; }
+    public String getOpportunityId()
+    {
+        if(opportunityId == null) {
+            opportunityId = sha256(actorId + "|" + step + "|" + frameId + "|" +
+                origin.row() + ',' + origin.col() + "|" + effectiveRange + "|" +
+                getCandidateDigest() + "|" + candidates.size());
+        }
+        return opportunityId;
+    }
     public String getActorSpecies() { return actorSpecies; }
     public Sex getActorSex() { return actorSex; }
     public LifeStage getActorLifeStage() { return actorLifeStage; }
@@ -200,7 +204,13 @@ public final class HuntOpportunityFact
     }
     public Location getOrigin() { return copy(origin); }
     public int getEffectiveRange() { return effectiveRange; }
-    public String getCandidateDigest() { return candidateDigest; }
+    public String getCandidateDigest()
+    {
+        if(candidateDigest == null) {
+            candidateDigest = digestCandidates(candidates);
+        }
+        return candidateDigest;
+    }
     public int getCandidateCount() { return candidates.size(); }
     public int getSearchLocationCount() { return searchLocations.size(); }
     public boolean hasLocalReachableEdible() { return !candidates.isEmpty(); }
@@ -208,12 +218,15 @@ public final class HuntOpportunityFact
 
     public boolean hasSameIdentity(HuntOpportunityFact other)
     {
+        if(this == other) {
+            return true;
+        }
         return other != null && actorId == other.actorId && step == other.step &&
-            frameId.equals(other.frameId) &&
-            opportunityId.equals(other.opportunityId) &&
             effectiveRange == other.effectiveRange &&
-            candidateDigest.equals(other.candidateDigest) &&
-            candidates.size() == other.candidates.size();
+            candidates.size() == other.candidates.size() &&
+            frameId.equals(other.frameId) &&
+            getOpportunityId().equals(other.getOpportunityId()) &&
+            getCandidateDigest().equals(other.getCandidateDigest());
     }
 
     private static List<Location> immutableLocations(List<Location> values)
@@ -253,7 +266,7 @@ public final class HuntOpportunityFact
 
     private static Location copy(Location value)
     {
-        return value == null ? null : new Location(value.row(), value.col());
+        return value;
     }
 
     /** Immutable identity-only member of the frozen edible candidate set. */

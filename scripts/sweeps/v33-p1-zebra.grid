@@ -1,0 +1,9 @@
+# v3.3 P-1 round 9: round 8 left only Zebra's whole-run minimum short (need 800, got 599-869) because capacityScale 0.4 holds Zebra at 1100-1560; raise Zebra births
+# base = preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.2, N2 0.3 (round 8: span 257, lnSdRun 0.30, Gazelle min 1198)
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.2,capacity.preyOverload=10,grass.capacityScale=0.4,repro.herbivoreConditionMin=0.3
+candidate species.zebra.breedingProbability=0.1
+candidate species.zebra.breedingProbability=0.115
+candidate species.zebra.breedingProbability=0.13
+candidate species.zebra.breedingProbability=0.115,capacity.preyOverload=9
+candidate species.zebra.breedingProbability=0.115,grazing.refugeFill=0.15
+candidate species.zebra.breedingProbability=0.115,repro.herbivoreConditionMin=0

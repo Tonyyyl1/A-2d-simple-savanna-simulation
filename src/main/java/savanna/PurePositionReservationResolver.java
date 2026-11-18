@@ -4,7 +4,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +35,21 @@ public final class PurePositionReservationResolver
                                 Set<Location> fixedOccupancy,
                                 long stepSalt)
     {
+        return resolve(snapshot, batch, topology, fixedOccupancy, stepSalt,
+            new Scratch());
+    }
+
+    /**
+     * Same as the five-argument resolve, reusing {@code scratch} for the per-cell holder
+     * table so that no field-sized array is allocated per step. The scratch is left
+     * empty on return, also when this method throws.
+     */
+    PositionPlan resolve(StepStartPositionSnapshot snapshot,
+                         PositionClaimBatch batch,
+                         PositionTopology topology,
+                         Set<Location> fixedOccupancy,
+                         long stepSalt, Scratch scratch)
+    {
         Objects.requireNonNull(snapshot, "step-start snapshot is required");
         Objects.requireNonNull(batch, "position claim batch is required");
         Objects.requireNonNull(topology, "position topology is required");
@@ -44,20 +58,24 @@ public final class PurePositionReservationResolver
                 "Resolver and topology position policies differ");
         }
         Set<Location> fixed = immutableFixed(fixedOccupancy);
-        validateSnapshot(snapshot, topology, fixed);
+        if(RuntimeAudit.enabled()) {
+            validateSnapshot(snapshot, topology, fixed);
+        }
 
         PositionCandidatePolicy candidatePolicy = new PositionCandidatePolicy(
             topology, policy);
-        Map<PositionActorKey, PositionClaim> explicit = explicitClaims(snapshot,
-            batch);
-        List<ClaimRuntime> runtimes = new ArrayList<>();
+        validateBatch(snapshot, batch);
+        List<ClaimRuntime> runtimes = new ArrayList<>(snapshot.size() + 16);
         Map<PositionActorKey, PositionResolution> directResolutions =
             new LinkedHashMap<>();
         Map<PositionActorKey, Integer> directDebt = new LinkedHashMap<>();
         long candidateLimit = 0L;
 
-        for(long adultId : snapshot.getAdultIds()) {
-            PositionActorKey actor = PositionActorKey.adult(adultId);
+        List<Long> adultIds = snapshot.getAdultIds();
+        List<PositionActorKey> adultKeys = snapshot.getAdultKeys();
+        for(int adultIndex = 0; adultIndex < adultIds.size(); adultIndex++) {
+            long adultId = adultIds.get(adultIndex).longValue();
+            PositionActorKey actor = adultKeys.get(adultIndex);
             Location origin = snapshot.originOf(adultId);
             if(batch.isReleased(actor)) {
                 directResolutions.put(actor, new PositionResolution(actor,
@@ -71,12 +89,12 @@ public final class PurePositionReservationResolver
                 PositionClaim cancelledStay = PositionClaim.stay(adultId,
                     PositionPriority.ORDINARY_MOVE, 0);
                 ClaimRuntime runtime = new ClaimRuntime(cancelledStay, origin,
-                    true, false, candidatePolicy);
+                    true, false, candidatePolicy, policy, stepSalt);
                 runtimes.add(runtime);
                 candidateLimit += runtime.candidateLimit();
                 continue;
             }
-            PositionClaim claim = explicit.get(actor);
+            PositionClaim claim = batch.getClaim(actor);
             boolean implicitStay = claim == null;
             if(implicitStay) {
                 claim = PositionClaim.stay(adultId,
@@ -84,7 +102,7 @@ public final class PurePositionReservationResolver
             }
             claim = normalizeAdultClaim(claim, origin);
             ClaimRuntime runtime = new ClaimRuntime(claim, origin, false,
-                implicitStay, candidatePolicy);
+                implicitStay, candidatePolicy, policy, stepSalt);
             runtimes.add(runtime);
             candidateLimit += runtime.candidateLimit();
         }
@@ -94,7 +112,7 @@ public final class PurePositionReservationResolver
                 continue;
             }
             ClaimRuntime runtime = new ClaimRuntime(claim, null, false, false,
-                candidatePolicy);
+                candidatePolicy, policy, stepSalt);
             runtimes.add(runtime);
             candidateLimit += runtime.candidateLimit();
         }
@@ -109,25 +127,33 @@ public final class PurePositionReservationResolver
             directDebt.put(actor, 0);
         }
 
-        Comparator<ClaimRuntime> order = claimOrder(stepSalt);
+        Comparator<ClaimRuntime> order = claimOrder();
         runtimes.sort(order);
         Queue<ClaimRuntime> pending = new ArrayDeque<>(runtimes);
-        Map<Location, ClaimRuntime> holderByCell = new HashMap<>();
-        Map<PositionActorKey, Assignment> assignmentByActor = new HashMap<>();
         ResolutionCounters counters = new ResolutionCounters();
 
-        while(!pending.isEmpty()) {
-            ClaimRuntime claimant = pending.remove();
-            resolveClaimant(claimant, snapshot, topology, fixed, holderByCell,
-                assignmentByActor, pending, counters, stepSalt);
+        scratch.prepare(topology.getDepth(), topology.getWidth());
+        try {
+            while(!pending.isEmpty()) {
+                ClaimRuntime claimant = pending.remove();
+                resolveClaimant(claimant, snapshot, topology, fixed, scratch,
+                    pending, counters);
+            }
+        }
+        finally {
+            scratch.clear();
         }
 
+        // Room for every entry up front: no rehash while the per-claimant results go in.
+        int expectedEntries = (int)((runtimes.size() + directResolutions.size()) / 0.75f) + 1;
         Map<PositionActorKey, PositionResolution> resolutions =
-            new LinkedHashMap<>(directResolutions);
-        Map<PositionActorKey, Integer> nextDebt = new LinkedHashMap<>(directDebt);
+            new LinkedHashMap<>(expectedEntries);
+        resolutions.putAll(directResolutions);
+        Map<PositionActorKey, Integer> nextDebt = new LinkedHashMap<>(expectedEntries);
+        nextDebt.putAll(directDebt);
         for(ClaimRuntime runtime : runtimes) {
-            Assignment assignment = assignmentByActor.get(runtime.actor());
-            PositionResolution resolution = buildResolution(runtime, assignment);
+            PositionResolution resolution = buildResolution(runtime,
+                runtime.assignment);
             resolutions.put(runtime.actor(), resolution);
             nextDebt.put(runtime.actor(), nextWaitingDebt(runtime, resolution));
         }
@@ -136,17 +162,18 @@ public final class PurePositionReservationResolver
             runtimes.size() + directResolutions.size(), counters.candidateVisits,
             candidateLimit, counters.proposals, counters.contentions,
             counters.requeues);
-        PositionPlan plan = new PositionPlan(policy.getVersion(), stepSalt,
+        PositionPlan plan = PositionPlan.adopting(policy.getVersion(), stepSalt,
             resolutions, nextDebt, metrics);
-        PositionPlanValidator.requireValid(snapshot, plan, topology, fixed,
-            batch.getReleased());
+        if(RuntimeAudit.enabled()) {
+            PositionPlanValidator.requireValid(snapshot, plan, topology, fixed,
+                batch.getReleased());
+        }
         return plan;
     }
 
-    private Map<PositionActorKey, PositionClaim> explicitClaims(
-        StepStartPositionSnapshot snapshot, PositionClaimBatch batch)
+    /** Rejects a batch that names a non-living adult or exceeds the registered policy. */
+    private void validateBatch(StepStartPositionSnapshot snapshot, PositionClaimBatch batch)
     {
-        Map<PositionActorKey, PositionClaim> result = new LinkedHashMap<>();
         for(PositionClaim claim : batch.getClaims()) {
             PositionActorKey actor = claim.getActor();
             if(actor.isAdult() && !snapshot.containsAdult(actor.getAdultId())) {
@@ -162,7 +189,6 @@ public final class PurePositionReservationResolver
                 throw new IllegalArgumentException(
                     "Claim candidate budget exceeds registered policy: " + actor);
             }
-            result.put(actor, claim);
         }
         for(PositionActorKey actor : batch.getCancelled()) {
             if(actor.isAdult() && !snapshot.containsAdult(actor.getAdultId())) {
@@ -176,7 +202,6 @@ public final class PurePositionReservationResolver
                     "Release references a non-living step-start adult: " + actor);
             }
         }
-        return result;
     }
 
     private PositionClaim normalizeAdultClaim(PositionClaim claim,
@@ -204,12 +229,11 @@ public final class PurePositionReservationResolver
                                  StepStartPositionSnapshot snapshot,
                                  PositionTopology topology,
                                  Set<Location> fixed,
-                                 Map<Location, ClaimRuntime> holderByCell,
-                                 Map<PositionActorKey, Assignment> assignments,
+                                 Scratch scratch,
                                  Queue<ClaimRuntime> pending,
-                                 ResolutionCounters counters, long stepSalt)
+                                 ResolutionCounters counters)
     {
-        if(assignments.containsKey(claimant.actor())) {
+        if(claimant.assignment != null) {
             throw new IllegalStateException("Assigned claimant was requeued: " +
                 claimant.actor());
         }
@@ -226,22 +250,23 @@ public final class PurePositionReservationResolver
                 continue;
             }
             counters.proposals++;
-            ClaimRuntime incumbent = holderByCell.get(cell);
+            // The cell is passable, hence inside the topology, hence inside the table.
+            int index = cell.row() * scratch.width + cell.col();
+            ClaimRuntime incumbent = scratch.holderByCell[index];
             if(incumbent == null) {
-                Assignment assignment = new Assignment(cell, candidate);
-                holderByCell.put(cell, claimant);
-                assignments.put(claimant.actor(), assignment);
+                claimant.assignment = new Assignment(cell, candidate);
+                scratch.hold(index, claimant);
                 return;
             }
             counters.contentions++;
             ClaimRuntime winner = betterForCell(claimant, incumbent, cell,
-                snapshot, stepSalt);
+                snapshot);
             ClaimRuntime loser = winner == claimant ? incumbent : claimant;
             loser.noteContentionLoss(winner, cell, snapshot, policy);
             if(winner == claimant) {
-                assignments.remove(incumbent.actor());
-                holderByCell.put(cell, claimant);
-                assignments.put(claimant.actor(), new Assignment(cell, candidate));
+                incumbent.assignment = null;
+                scratch.holderByCell[index] = claimant;
+                claimant.assignment = new Assignment(cell, candidate);
                 pending.add(incumbent);
                 counters.requeues++;
                 return;
@@ -251,16 +276,14 @@ public final class PurePositionReservationResolver
 
     private ClaimRuntime betterForCell(ClaimRuntime challenger,
                                        ClaimRuntime incumbent, Location cell,
-                                       StepStartPositionSnapshot snapshot,
-                                       long stepSalt)
+                                       StepStartPositionSnapshot snapshot)
     {
         boolean challengerOwner = challenger.ownsOrigin(cell, snapshot);
         boolean incumbentOwner = incumbent.ownsOrigin(cell, snapshot);
         if(challengerOwner != incumbentOwner) {
             return challengerOwner ? challenger : incumbent;
         }
-        int priority = Integer.compare(policy.rank(challenger.priority()),
-            policy.rank(incumbent.priority()));
+        int priority = Integer.compare(challenger.rank, incumbent.rank);
         if(priority != 0) {
             return priority > 0 ? challenger : incumbent;
         }
@@ -269,8 +292,8 @@ public final class PurePositionReservationResolver
         if(debt != 0) {
             return debt > 0 ? challenger : incumbent;
         }
-        int rotation = Long.compareUnsigned(rotationKey(challenger.actor(), stepSalt),
-            rotationKey(incumbent.actor(), stepSalt));
+        int rotation = Long.compareUnsigned(challenger.rotation,
+            incumbent.rotation);
         if(rotation != 0) {
             return rotation < 0 ? challenger : incumbent;
         }
@@ -278,11 +301,10 @@ public final class PurePositionReservationResolver
             ? challenger : incumbent;
     }
 
-    private Comparator<ClaimRuntime> claimOrder(long stepSalt)
+    private Comparator<ClaimRuntime> claimOrder()
     {
         return (first, second) -> {
-            int priority = Integer.compare(policy.rank(second.priority()),
-                policy.rank(first.priority()));
+            int priority = Integer.compare(second.rank, first.rank);
             if(priority != 0) {
                 return priority;
             }
@@ -290,8 +312,7 @@ public final class PurePositionReservationResolver
             if(debt != 0) {
                 return debt;
             }
-            int rotation = Long.compareUnsigned(rotationKey(first.actor(), stepSalt),
-                rotationKey(second.actor(), stepSalt));
+            int rotation = Long.compareUnsigned(first.rotation, second.rotation);
             return rotation != 0 ? rotation :
                 first.actor().compareTo(second.actor());
         };
@@ -372,6 +393,47 @@ public final class PurePositionReservationResolver
         return Collections.unmodifiableSet(copy);
     }
 
+    /**
+     * Per-cell table of the claimant currently holding each cell, reusable across steps.
+     * Only the cells written during a resolve are cleared afterwards. Not thread-safe.
+     */
+    static final class Scratch
+    {
+        private ClaimRuntime[] holderByCell = new ClaimRuntime[0];
+        private int width;
+        private int[] touched = new int[256];
+        private int touchedCount;
+
+        private void prepare(int depth, int width)
+        {
+            if(touchedCount != 0) {
+                throw new IllegalStateException("scratch was not cleared");
+            }
+            this.width = width;
+            if(holderByCell.length != depth * width) {
+                holderByCell = new ClaimRuntime[depth * width];
+            }
+        }
+
+        /** Records the first holder of a cell. */
+        private void hold(int index, ClaimRuntime claimant)
+        {
+            if(touchedCount == touched.length) {
+                touched = java.util.Arrays.copyOf(touched, touched.length * 2);
+            }
+            touched[touchedCount++] = index;
+            holderByCell[index] = claimant;
+        }
+
+        private void clear()
+        {
+            for(int i = 0; i < touchedCount; i++) {
+                holderByCell[touched[i]] = null;
+            }
+            touchedCount = 0;
+        }
+    }
+
     private static final class Assignment
     {
         private final Location destination;
@@ -399,6 +461,11 @@ public final class PurePositionReservationResolver
         private final boolean cancelled;
         private final boolean implicitStay;
         private final PositionCandidateCursor cursor;
+        /** Pure functions of the claim and the step salt, computed once for the sort. */
+        private final int rank;
+        private final long rotation;
+        /** The cell this claimant currently holds, or null while it holds none. */
+        private Assignment assignment;
         private boolean sawFixed;
         private boolean sawImpassable;
         private boolean ownerProtectionObserved;
@@ -406,9 +473,12 @@ public final class PurePositionReservationResolver
 
         private ClaimRuntime(PositionClaim claim, Location origin,
                              boolean cancelled, boolean implicitStay,
-                             PositionCandidatePolicy candidatePolicy)
+                             PositionCandidatePolicy candidatePolicy,
+                             PositionKernelPolicy policy, long stepSalt)
         {
             this.claim = claim;
+            rank = policy.rank(claim.getPriority());
+            rotation = rotationKey(claim.getActor(), stepSalt);
             this.origin = origin;
             this.cancelled = cancelled;
             this.implicitStay = implicitStay;

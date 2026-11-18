@@ -1,6 +1,7 @@
 package savanna;
 
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -25,6 +26,10 @@ public final class CoreFieldTests
         testExistingAnimalMoveSynchronizesEveryLedger();
         testFailedMoveHasNoSideEffects();
         testResolverReservationIsPrivateAndFieldFree();
+        testConsistencyCheckDetectsListedAnimalOutsideCells();
+        testConsistencyCheckDetectsDuplicateListedAnimal();
+        testConsistencyCheckDetectsLocationMismatch();
+        testConsistencyCheckDetectsDeadAnimalInCell();
         TestSupport.finishGroup();
     }
 
@@ -98,6 +103,79 @@ public final class CoreFieldTests
                                  field.getAnimals());
         TestSupport.assertTrue("CORE-FIELD failed move remains consistent",
                                field.hasConsistentState());
+    }
+
+    /*
+     * hasConsistentState() counter-examples. Every corruption starts from a field the
+     * check accepts, so a false result can only come from the corruption itself.
+     */
+
+    private static void testConsistencyCheckDetectsListedAnimalOutsideCells()
+    {
+        Field field = new Field(5, 5);
+        AnimalIdentityAllocator identities = new AnimalIdentityAllocator();
+        Gazelle placed = gazelle(new Location(1, 1), identities);
+        Gazelle stray = gazelle(new Location(3, 3), identities);
+        field.placeAnimal(placed, new Location(1, 1));
+        TestSupport.assertTrue("CORE-FIELD corruption control: field starts consistent",
+                               field.hasConsistentState());
+
+        TestSupport.setField(field, "animals",
+                             new ArrayList<Animal>(List.of(placed, stray)));
+
+        TestSupport.assertFalse(
+            "CORE-FIELD consistency check rejects a listed animal that owns no cell",
+            field.hasConsistentState());
+    }
+
+    private static void testConsistencyCheckDetectsDuplicateListedAnimal()
+    {
+        Field field = new Field(5, 5);
+        AnimalIdentityAllocator identities = new AnimalIdentityAllocator();
+        Gazelle first = gazelle(new Location(1, 1), identities);
+        Gazelle second = gazelle(new Location(2, 2), identities);
+        field.placeAnimal(first, new Location(1, 1));
+        field.placeAnimal(second, new Location(2, 2));
+        TestSupport.assertTrue("CORE-FIELD duplicate control: field starts consistent",
+                               field.hasConsistentState());
+
+        // Same length as the cell count, so a count-only comparison would accept it.
+        TestSupport.setField(field, "animals",
+                             new ArrayList<Animal>(List.of(first, first)));
+
+        TestSupport.assertFalse(
+            "CORE-FIELD consistency check rejects the same animal listed twice",
+            field.hasConsistentState());
+    }
+
+    private static void testConsistencyCheckDetectsLocationMismatch()
+    {
+        Field field = new Field(5, 5);
+        Gazelle animal = gazelle(new Location(1, 1), new AnimalIdentityAllocator());
+        field.placeAnimal(animal, new Location(1, 1));
+        TestSupport.assertTrue("CORE-FIELD location control: field starts consistent",
+                               field.hasConsistentState());
+
+        animal.setLocation(new Location(2, 2));
+
+        TestSupport.assertFalse(
+            "CORE-FIELD consistency check rejects an animal whose location left its cell",
+            field.hasConsistentState());
+    }
+
+    private static void testConsistencyCheckDetectsDeadAnimalInCell()
+    {
+        Field field = new Field(5, 5);
+        Gazelle animal = gazelle(new Location(1, 1), new AnimalIdentityAllocator());
+        field.placeAnimal(animal, new Location(1, 1));
+        TestSupport.assertTrue("CORE-FIELD dead-animal control: field starts consistent",
+                               field.hasConsistentState());
+
+        animal.setDead();
+
+        TestSupport.assertFalse(
+            "CORE-FIELD consistency check rejects a dead animal that still owns a cell",
+            field.hasConsistentState());
     }
 
     private static void testResolverReservationIsPrivateAndFieldFree()

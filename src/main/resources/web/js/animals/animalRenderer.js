@@ -15,9 +15,17 @@ function makeMaterial(timeUniform) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = timeUniform;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aLeg; attribute vec2 instAnim; uniform float uTime;')
+      .replace('#include <common>', '#include <common>\nattribute vec3 aLeg; attribute vec3 aHead; attribute vec3 instAnim; uniform float uTime;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 float gait = instAnim.y;
+float pose = instAnim.z;
+if (aHead.z > 0.0 && (pose > 0.5 && pose < 2.5)) {          // 1 graze, 2 drink: head down
+  float th = pose < 1.5 ? 0.85 : 1.05;
+  float dx = position.x - aHead.x, dy = position.y - aHead.y;
+  transformed.x = aHead.x + dx * cos(th) + dy * sin(th);
+  transformed.y = aHead.y - dx * sin(th) + dy * cos(th);
+}
+if (pose > 2.5 && pose < 3.5) { transformed.y = position.y * 0.62; }   // 3 lying down
 if (gait > 0.001) {
   float wave = uTime * (4.0 + 5.0 * gait) + instAnim.x;
   if (aLeg.z > 0.0) {
@@ -56,9 +64,9 @@ export class AnimalRenderer {
 
   makeMesh(geometry, capacity, animated) {
     const g = geometry.clone();
-    if (animated) g.setAttribute('instAnim', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2).setUsage(THREE.DynamicDrawUsage));
-    else g.setAttribute('aLeg', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3));
-    if (!g.getAttribute('instAnim')) g.setAttribute('instAnim', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2));
+    if (animated) g.setAttribute('instAnim', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    else { g.setAttribute('aLeg', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3)); g.setAttribute('aHead', new THREE.BufferAttribute(new Float32Array(g.getAttribute('position').count * 3), 3)); }
+    if (!g.getAttribute('instAnim')) g.setAttribute('instAnim', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3));
     const mesh = new THREE.InstancedMesh(g, this.material, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = animated;
     this.group.add(mesh); return mesh;
@@ -104,13 +112,14 @@ export class AnimalRenderer {
       const heading = (dRow !== 0 || dCol !== 0) ? Math.atan2(dRow, dCol) : (id % 628) / 100;
       const running = f.action[i] === ACTION_HUNT || f.reason[i] === REASON_THREAT;
       const gait = moving ? (running ? 1.5 : 0.8) : 0;
+      const effects = f.effects[i], pose = (flags & 128) ? 3 : (!moving && (effects & 1)) ? 2 : (!moving && (effects & 4)) ? 1 : 0;
       const stage = (flags >> 1) & 3, scale = stage === 0 ? 0.45 : stage === 1 ? 0.72 : 1;
       q.setFromAxisAngle(up, -heading); p.set(x, y, z); s.setScalar(scale); m.compose(p, q, s);
       const dx = x - cameraPosition.x, dz = z - cameraPosition.z, dy = y - cameraPosition.y;
       if (dx * dx + dz * dz + dy * dy < near2) {
         const male = flags & 1 ? 1 : 0, mesh = this.near[sp][male], index = nearCount[sp][male]++;
         mesh.setMatrixAt(index, m);
-        const anim = mesh.geometry.getAttribute('instAnim'); anim.setXY(index, (idHash(id) & 1023) / 160, gait);
+        const anim = mesh.geometry.getAttribute('instAnim'); anim.setXYZ(index, (idHash(id) & 1023) / 160, gait, pose);
         near++;
       }
       else {

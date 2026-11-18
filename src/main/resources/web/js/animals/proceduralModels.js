@@ -6,12 +6,12 @@ import { mergeGeometries } from '../../vendor/examples/jsm/utils/BufferGeometryU
 
 const NO_LEG = [0, 0, 0];
 
-function part(geometry, color, { pos = [0, 0, 0], scale = [1, 1, 1], rot = [0, 0, 0], leg = NO_LEG, noise = 0, stripes = null, belly = null } = {}) {
+function part(geometry, color, { pos = [0, 0, 0], scale = [1, 1, 1], rot = [0, 0, 0], leg = NO_LEG, noise = 0, stripes = null, belly = null, head = null } = {}) {
   const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
   g.scale(scale[0], scale[1], scale[2]);
   g.rotateX(rot[0]); g.rotateY(rot[1]); g.rotateZ(rot[2]);
   g.translate(pos[0], pos[1], pos[2]);
-  const p = g.getAttribute('position'), n = p.count, colors = new Float32Array(n * 3), legs = new Float32Array(n * 3), c = new THREE.Color(color);
+  const p = g.getAttribute('position'), n = p.count, colors = new Float32Array(n * 3), legs = new Float32Array(n * 3), heads = new Float32Array(n * 3), c = new THREE.Color(color);
   for (let i = 0; i < n; i++) {
     let r = c.r, gg = c.g, b = c.b;
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
@@ -20,9 +20,11 @@ function part(geometry, color, { pos = [0, 0, 0], scale = [1, 1, 1], rot = [0, 0
     if (belly) { const t = Math.max(0, Math.min(1, (belly - y) / 0.18)); r = r * (1 - t) + 0.92 * t; gg = gg * (1 - t) + 0.9 * t; b = b * (1 - t) + 0.86 * t; }
     colors[3 * i] = r; colors[3 * i + 1] = gg; colors[3 * i + 2] = b;
     if (leg[2] > 0) { legs[3 * i] = leg[0]; legs[3 * i + 1] = leg[1]; legs[3 * i + 2] = leg[2]; }
+    if (head) { heads[3 * i] = head[0]; heads[3 * i + 1] = head[1]; heads[3 * i + 2] = 1; }
   }
   g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   g.setAttribute('aLeg', new THREE.BufferAttribute(legs, 3));
+  g.setAttribute('aHead', new THREE.BufferAttribute(heads, 3));
   return g;
 }
 
@@ -46,41 +48,41 @@ function build(species, male) {
     const c = 0xc79a58;
     parts.push(part(SPHERE, c, { pos: [0, 1.05, 0], scale: [1.9, 0.78, 0.7], noise: 0.06, belly: 0.82 }));
     legs(parts, c, { length: 0.72, thick: 0.2, frontX: 0.65, rearX: -0.62, halfWidth: 0.24, top: 0.78 });
-    parts.push(part(SPHERE, c, { pos: [1.12, 1.35, 0], scale: [0.5, 0.46, 0.44] }));
-    parts.push(part(BOX, 0x8a6a45, { pos: [1.4, 1.27, 0], scale: [0.22, 0.2, 0.26] }));
-    if (male) parts.push(part(SPHERE, 0x4a3320, { pos: [0.95, 1.32, 0], scale: [0.75, 0.82, 0.82], noise: 0.15 }));
+    parts.push(part(SPHERE, c, { pos: [1.12, 1.35, 0], scale: [0.5, 0.46, 0.44], head: [0.8, 1.2] }));
+    parts.push(part(BOX, 0x8a6a45, { pos: [1.4, 1.27, 0], scale: [0.22, 0.2, 0.26], head: [0.8, 1.2] }));
+    if (male) parts.push(part(SPHERE, 0x4a3320, { pos: [0.95, 1.32, 0], scale: [0.75, 0.82, 0.82], noise: 0.15, head: [0.8, 1.2] }));
     parts.push(part(CYL, c, { pos: [-1.12, 1.0, 0], scale: [0.09, 0.9, 0.09], rot: [0, 0, 1.0] }));
     parts.push(part(SPHERE, 0x3a2a1a, { pos: [-1.5, 0.62, 0], scale: [0.17, 0.2, 0.17] }));
   } else if (species === 1) {                                  // Cheetah
     const c = 0xdcb35a;
     parts.push(part(SPHERE, c, { pos: [0, 0.82, 0], scale: [1.25, 0.46, 0.36], noise: 0.45, belly: 0.65 }));
     legs(parts, c, { length: 0.62, thick: 0.12, frontX: 0.42, rearX: -0.4, halfWidth: 0.13, top: 0.7 });
-    parts.push(part(SPHERE, c, { pos: [0.78, 1.0, 0], scale: [0.3, 0.28, 0.26], noise: 0.4 }));
-    parts.push(part(CYL, c, { pos: [0.52, 0.95, 0], scale: [0.1, 0.34, 0.1], rot: [0, 0, -0.7] }));
+    parts.push(part(SPHERE, c, { pos: [0.78, 1.0, 0], scale: [0.3, 0.28, 0.26], noise: 0.4, head: [0.4, 0.9] }));
+    parts.push(part(CYL, c, { pos: [0.52, 0.95, 0], scale: [0.1, 0.34, 0.1], rot: [0, 0, -0.7], head: [0.4, 0.9] }));
     parts.push(part(CYL, c, { pos: [-0.9, 0.9, 0], scale: [0.06, 0.95, 0.06], rot: [0, 0, 1.15], noise: 0.4 }));
   } else if (species === 2) {                                  // Zebra
     const c = 0xf0f0f0;
     parts.push(part(SPHERE, c, { pos: [0, 1.2, 0], scale: [1.9, 0.86, 0.66], stripes: 9, belly: 0.9 }));
     legs(parts, c, { length: 0.82, thick: 0.15, frontX: 0.62, rearX: -0.62, halfWidth: 0.2, top: 0.9, tint: 1 });
-    parts.push(part(CYL, c, { pos: [0.95, 1.55, 0], scale: [0.26, 0.7, 0.24], rot: [0, 0, -0.75], stripes: 14 }));
-    parts.push(part(SPHERE, c, { pos: [1.35, 1.78, 0], scale: [0.5, 0.3, 0.26], stripes: 18 }));
-    parts.push(part(BOX, 0x1b1b1b, { pos: [1.05, 1.82, 0], scale: [0.6, 0.12, 0.05], rot: [0, 0, -0.75] }));
+    parts.push(part(CYL, c, { pos: [0.95, 1.55, 0], scale: [0.26, 0.7, 0.24], rot: [0, 0, -0.75], stripes: 14, head: [0.7, 1.3] }));
+    parts.push(part(SPHERE, c, { pos: [1.35, 1.78, 0], scale: [0.5, 0.3, 0.26], stripes: 18, head: [0.7, 1.3] }));
+    parts.push(part(BOX, 0x1b1b1b, { pos: [1.05, 1.82, 0], scale: [0.6, 0.12, 0.05], rot: [0, 0, -0.75], head: [0.7, 1.3] }));
     parts.push(part(CYL, 0x1b1b1b, { pos: [-1.05, 1.15, 0], scale: [0.06, 0.6, 0.06], rot: [0, 0, 0.35] }));
   } else if (species === 3) {                                  // Buffalo
     const c = 0x3b352f;
     parts.push(part(SPHERE, c, { pos: [0, 1.1, 0], scale: [2.2, 1.0, 0.9], noise: 0.08 }));
     legs(parts, c, { length: 0.8, thick: 0.22, frontX: 0.7, rearX: -0.72, halfWidth: 0.3, top: 0.9 });
-    parts.push(part(SPHERE, c, { pos: [1.3, 1.0, 0], scale: [0.7, 0.62, 0.62] }));
-    parts.push(part(BOX, 0x5a5048, { pos: [1.28, 1.5, 0], scale: [0.5, 0.18, 0.9] }));
-    for (const s of [-1, 1]) parts.push(part(CONE, 0xd8d0c0, { pos: [1.25, 1.5, s * 0.55], scale: [0.14, 0.7, 0.14], rot: [s * -1.2, 0, 0] }));
+    parts.push(part(SPHERE, c, { pos: [1.3, 1.0, 0], scale: [0.7, 0.62, 0.62], head: [0.9, 1.1] }));
+    parts.push(part(BOX, 0x5a5048, { pos: [1.28, 1.5, 0], scale: [0.5, 0.18, 0.9], head: [0.9, 1.1] }));
+    for (const s of [-1, 1]) parts.push(part(CONE, 0xd8d0c0, { pos: [1.25, 1.5, s * 0.55], scale: [0.14, 0.7, 0.14], rot: [s * -1.2, 0, 0], head: [0.9, 1.1] }));
     parts.push(part(CYL, c, { pos: [-1.2, 1.0, 0], scale: [0.07, 0.7, 0.07], rot: [0, 0, 0.3] }));
   } else {                                                     // Gazelle
     const c = 0xc89a64;
     parts.push(part(SPHERE, c, { pos: [0, 0.92, 0], scale: [1.0, 0.4, 0.3], belly: 0.82, noise: 0.05 }));
     legs(parts, c, { length: 0.68, thick: 0.07, frontX: 0.32, rearX: -0.32, halfWidth: 0.1, top: 0.8 });
-    parts.push(part(CYL, c, { pos: [0.5, 1.15, 0], scale: [0.11, 0.5, 0.1], rot: [0, 0, -0.6] }));
-    parts.push(part(SPHERE, c, { pos: [0.74, 1.42, 0], scale: [0.26, 0.2, 0.18] }));
-    if (male) for (const s of [-1, 1]) parts.push(part(CONE, 0x2b2420, { pos: [0.7, 1.62, s * 0.07], scale: [0.04, 0.4, 0.04], rot: [0, 0, 0.15] }));
+    parts.push(part(CYL, c, { pos: [0.5, 1.15, 0], scale: [0.11, 0.5, 0.1], rot: [0, 0, -0.6], head: [0.35, 0.95] }));
+    parts.push(part(SPHERE, c, { pos: [0.74, 1.42, 0], scale: [0.26, 0.2, 0.18], head: [0.35, 0.95] }));
+    if (male) for (const s of [-1, 1]) parts.push(part(CONE, 0x2b2420, { pos: [0.7, 1.62, s * 0.07], scale: [0.04, 0.4, 0.04], rot: [0, 0, 0.15], head: [0.35, 0.95] }));
     parts.push(part(BOX, 0x20201c, { pos: [-0.5, 0.95, 0], scale: [0.12, 0.08, 0.04] }));
   }
   const merged = mergeGeometries(parts, false);

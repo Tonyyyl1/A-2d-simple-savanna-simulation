@@ -1,0 +1,4 @@
+# v3.3 P-2 round 4 (20000 steps): round 3 best = territory.lion=4, cheetah breedingProbability 0.03, cheetahInterference 1.5 (Cheetah mean 62-130, min >= 46, femMin >= 16, herbivore minima ok) but Lion mean 112-331 (limit 200) and Cheetah 130 on seed 1111 (limit 120). Cheetah births barely move its mean; interference does (2.0 collapsed seed 1111). Lion: territory.lion is an integer, so tune the window radius (24 now) to land between caps 3 and 4.
+candidate territory.lion=4,territory.lionRadius=27,species.cheetah.breedingProbability=0.03,predation.cheetahInterference=1.5
+candidate territory.lion=4,territory.lionRadius=27,species.cheetah.breedingProbability=0.035,predation.cheetahInterference=1.75
+candidate territory.lion=4,species.lion.breedingProbability=0.010,species.cheetah.breedingProbability=0.03,predation.cheetahInterference=1.5

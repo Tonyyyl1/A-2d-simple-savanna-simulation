@@ -1,7 +1,5 @@
 package savanna;
 
-import java.util.Objects;
-
 /**
  * Stable identity for a participant in a position plan.
  *
@@ -116,7 +114,11 @@ public final class PositionActorKey implements Comparable<PositionActorKey>
     @Override
     public int hashCode()
     {
-        return Objects.hash(kind, parentOrAdultId, litterOrdinal);
+        // Plain int arithmetic: no varargs array, no boxing. kind.ordinal() is stable
+        // across runs, unlike the identity hash of the enum constant itself.
+        int hash = Long.hashCode(parentOrAdultId);
+        hash = 31 * hash + litterOrdinal;
+        return 31 * hash + kind.ordinal();
     }
 
     @Override

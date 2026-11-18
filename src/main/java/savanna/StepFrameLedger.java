@@ -14,6 +14,8 @@ import java.util.List;
  */
 public final class StepFrameLedger
 {
+    private static final Comparator<OrdinalOutcome> OUTCOME_ORDER =
+        Comparator.comparingInt(OrdinalOutcome::getLitterOrdinal);
     private static final List<Phase> EXACT_PHASES = List.of(
         Phase.S0_CAPTURE,
         Phase.S1_REPRODUCTION_PROPOSAL,
@@ -21,7 +23,7 @@ public final class StepFrameLedger
         Phase.S3_REPRODUCTION_COMMIT,
         Phase.S4_PUBLISH);
 
-    private final String ledgerId;
+    private String ledgerId;
     private final String frameId;
     private final int step;
     private final long actorId;
@@ -67,17 +69,16 @@ public final class StepFrameLedger
         List<OrdinalOutcome> copied = ordinalOutcomes == null
             ? new ArrayList<OrdinalOutcome>()
             : new ArrayList<>(ordinalOutcomes);
-        copied.sort(Comparator.comparingInt(OrdinalOutcome::getLitterOrdinal));
+        // A list of fewer than two outcomes is already sorted; skip the sort machinery.
+        if(copied.size() > 1) {
+            copied.sort(OUTCOME_ORDER);
+        }
         this.ordinalOutcomes = Collections.unmodifiableList(copied);
         this.finalPhysiology = finalPhysiology;
         this.terminalReason = terminalReason;
-        validateJoins();
-        ledgerId = HuntOpportunityFact.sha256(frameId + "|" +
-            huntOpportunity.getOpportunityId() + "|" +
-            reproductionProposal.getProposalId() + "|" +
-            primaryAction.identityText() + "|" +
-            reproductionCommit.getDisposition() + "|" +
-            ordinalDigest(copied) + "|" + terminalReason);
+        if(RuntimeAudit.enabled()) {
+            validateJoins();
+        }
     }
 
     public static String frameId(int step, long actorId)
@@ -89,7 +90,18 @@ public final class StepFrameLedger
         return "step-" + step + "-actor-" + actorId;
     }
 
-    public String getLedgerId() { return ledgerId; }
+    public String getLedgerId()
+    {
+        if(ledgerId == null) {
+            ledgerId = HuntOpportunityFact.sha256(frameId + "|" +
+                huntOpportunity.getOpportunityId() + "|" +
+                reproductionProposal.getProposalId() + "|" +
+                primaryAction.identityText() + "|" +
+                reproductionCommit.getDisposition() + "|" +
+                ordinalDigest(ordinalOutcomes) + "|" + terminalReason);
+        }
+        return ledgerId;
+    }
     public String getFrameId() { return frameId; }
     public int getStep() { return step; }
     public long getActorId() { return actorId; }
@@ -136,8 +148,13 @@ public final class StepFrameLedger
         requireFrame(reproductionCommit.getFrameId(),
             reproductionCommit.getActorId(), reproductionCommit.getStep(),
             "reproduction commit");
-        if(!resourceClock.getClockId().equals(
-               reproductionProposal.getResourceClockId()) ||
+        if(reproductionProposal.getResourceClock() != resourceClock &&
+           !resourceClock.getClockId().equals(
+               reproductionProposal.getResourceClockId())) {
+            throw new IllegalStateException(
+                "S1/S3 reproduction facts do not join to S0");
+        }
+        if(reproductionCommit.getProposal() != reproductionProposal &&
            !reproductionProposal.getProposalId().equals(
                reproductionCommit.getProposalId())) {
             throw new IllegalStateException(
@@ -242,7 +259,7 @@ public final class StepFrameLedger
     /** S0 policy-neutral resource clock; same-step kills are never eligible. */
     public static final class ResourceClock
     {
-        private final String clockId;
+        private String clockId;
         private final String frameId;
         private final int step;
         private final long actorId;
@@ -260,11 +277,6 @@ public final class StepFrameLedger
             actorId = actor.getId();
             physiology = AnimalPhysiologyFact.capture(actor);
             realizedKillCreditThroughStep = step - 1;
-            clockId = HuntOpportunityFact.sha256(frameId + "|resource-s0|" +
-                physiology.getFood() + '|' +
-                Double.doubleToLongBits(physiology.getHydration()) + '|' +
-                Double.doubleToLongBits(physiology.getStamina()) + '|' +
-                realizedKillCreditThroughStep);
         }
 
         static ResourceClock capture(int step, SavannahAnimal actor,
@@ -273,7 +285,17 @@ public final class StepFrameLedger
             return new ResourceClock(step, actor, frameId);
         }
 
-        public String getClockId() { return clockId; }
+        public String getClockId()
+        {
+            if(clockId == null) {
+                clockId = HuntOpportunityFact.sha256(frameId + "|resource-s0|" +
+                    physiology.getFood() + '|' +
+                    Double.doubleToLongBits(physiology.getHydration()) + '|' +
+                    Double.doubleToLongBits(physiology.getStamina()) + '|' +
+                    realizedKillCreditThroughStep);
+            }
+            return clockId;
+        }
         public String getFrameId() { return frameId; }
         public int getStep() { return step; }
         public long getActorId() { return actorId; }
@@ -291,11 +313,12 @@ public final class StepFrameLedger
     /** Immutable S1 legacy proposal; it owns tokens, never child objects. */
     public static final class ReproductionProposal
     {
-        private final String proposalId;
+        private String proposalId;
         private final String frameId;
         private final int step;
         private final long actorId;
-        private final String resourceClockId;
+        private final ResourceClock resourceClock;
+        private String resourceClockId;
         private final ProposalReason reason;
         private final List<PositionClaim> claims;
         private final List<Integer> litterOrdinals;
@@ -328,7 +351,7 @@ public final class StepFrameLedger
             this.frameId = frameId;
             this.step = step;
             this.actorId = actorId;
-            resourceClockId = resourceClock.getClockId();
+            this.resourceClock = resourceClock;
             this.reason = reason;
             this.before = before;
             this.after = after;
@@ -344,7 +367,9 @@ public final class StepFrameLedger
                 ordinals.add(Integer.valueOf(
                     claim.getActor().getLitterOrdinal()));
             }
-            ordinals.sort(Integer::compareTo);
+            if(ordinals.size() > 1) {
+                ordinals.sort(Integer::compareTo);
+            }
             if(!allUnique(ordinals) ||
                (copied.isEmpty() && reason == ProposalReason.PROVISIONAL_CLAIMS) ||
                (!copied.isEmpty() && reason != ProposalReason.PROVISIONAL_CLAIMS)) {
@@ -353,9 +378,6 @@ public final class StepFrameLedger
             }
             this.claims = Collections.unmodifiableList(copied);
             litterOrdinals = Collections.unmodifiableList(ordinals);
-            proposalId = HuntOpportunityFact.sha256(frameId + "|s1|" +
-                resourceClockId + '|' + reason + '|' + claimDigest(copied) +
-                '|' + conceptionLitter);
         }
 
         static ReproductionProposal create(String frameId, int step,
@@ -397,11 +419,30 @@ public final class StepFrameLedger
                 physiology);
         }
 
-        public String getProposalId() { return proposalId; }
+        ResourceClock getResourceClock() { return resourceClock; }
+
+        public String getProposalId()
+        {
+            if(proposalId == null) {
+                proposalId = HuntOpportunityFact.sha256(frameId + "|s1|" +
+                    getResourceClockId() + '|' + reason + '|' + claimDigest(claims) +
+                    '|' + conceptionLitter);
+            }
+            return proposalId;
+        }
+
         public String getFrameId() { return frameId; }
         public int getStep() { return step; }
         public long getActorId() { return actorId; }
-        public String getResourceClockId() { return resourceClockId; }
+
+        public String getResourceClockId()
+        {
+            if(resourceClockId == null) {
+                resourceClockId = resourceClock.getClockId();
+            }
+            return resourceClockId;
+        }
+
         public ProposalReason getReason() { return reason; }
         public int getClaimCount() { return claims.size(); }
         public int getConceptionLitter() { return conceptionLitter; }
@@ -516,18 +557,21 @@ public final class StepFrameLedger
         private final String frameId;
         private final int step;
         private final long actorId;
-        private final String proposalId;
+        private final ReproductionProposal proposal;
+        private String proposalId;
         private final CommitDisposition disposition;
 
         private ReproductionCommit(ReproductionProposal proposal,
                                    CommitDisposition disposition)
         {
+            this.proposal = proposal;
             frameId = proposal.getFrameId();
             step = proposal.getStep();
             actorId = proposal.getActorId();
-            proposalId = proposal.getProposalId();
             this.disposition = disposition;
         }
+
+        ReproductionProposal getProposal() { return proposal; }
 
         static ReproductionCommit submit(ReproductionProposal proposal,
                                          boolean parentAlive)
@@ -547,7 +591,15 @@ public final class StepFrameLedger
         public String getFrameId() { return frameId; }
         public int getStep() { return step; }
         public long getActorId() { return actorId; }
-        public String getProposalId() { return proposalId; }
+
+        public String getProposalId()
+        {
+            if(proposalId == null) {
+                proposalId = proposal != null ? proposal.getProposalId() : "";
+            }
+            return proposalId;
+        }
+
         public CommitDisposition getDisposition() { return disposition; }
     }
 
@@ -726,8 +778,9 @@ public final class StepFrameLedger
             outcomes.add(OrdinalOutcome.fromResolution(claim,
                 plan.getResolution(claim.getActor())));
         }
-        outcomes.sort(Comparator.comparingInt(
-            OrdinalOutcome::getLitterOrdinal));
+        if(outcomes.size() > 1) {
+            outcomes.sort(OUTCOME_ORDER);
+        }
         return outcomes;
     }
 
@@ -756,6 +809,6 @@ public final class StepFrameLedger
 
     private static Location copy(Location value)
     {
-        return value == null ? null : new Location(value.row(), value.col());
+        return value;
     }
 }

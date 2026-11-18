@@ -1,0 +1,13 @@
+# v3.3 P-1 round 2: pairs of mild levers (round 1 stacked three or four and starved Gazelle)
+base init.lion=0,init.cheetah=0
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,starvation.herbivoreSteps=24
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,starvation.herbivoreSteps=12
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,grass.floorRate=0.008
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,starvation.herbivoreSteps=24,grass.floorRate=0.008
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,species.gazelle.breedingProbability=0.09
+candidate species.gazelle.breedingProbability=0.064,species.gazelle.maxLitterSize=1,starvation.herbivoreSteps=24
+candidate species.gazelle.breedingProbability=0.064,species.gazelle.maxLitterSize=1,grass.floorRate=0.008
+candidate species.gazelle.breedingProbability=0.09,starvation.herbivoreSteps=24
+candidate species.gazelle.breedingProbability=0.09,grass.floorRate=0.008
+candidate species.gazelle.breedingProbability=0.064,repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25
+candidate species.gazelle.breedingProbability=0.09,starvation.herbivoreSteps=12,grass.floorRate=0.008

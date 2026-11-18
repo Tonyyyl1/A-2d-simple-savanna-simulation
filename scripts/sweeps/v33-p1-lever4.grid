@@ -1,0 +1,3 @@
+# v3.3 P-1 lever 4: guaranteed grass regrowth when grazed low
+base init.lion=0,init.cheetah=0
+axis grass.floorRate=0.008,0.016

@@ -10,6 +10,15 @@ public interface SpeciesProfile
 {
     String getName();
 
+    /**
+     * Habitat score of this species on a terrain (see {@link HabitatPreferences}).
+     * Implementations may precompute it; the default computes it from the name.
+     */
+    default double habitatSpawnModifier(TerrainType terrain)
+    {
+        return HabitatPreferences.computeSpawnModifier(getName(), terrain);
+    }
+
     Color getColor();
 
     boolean isPredator();

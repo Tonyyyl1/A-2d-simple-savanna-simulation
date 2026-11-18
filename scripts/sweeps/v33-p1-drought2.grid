@@ -1,0 +1,8 @@
+# v3.3 P-1 round 14: N3 between 0.5 and 0.75, plus Buffalo's own grazingRate (round 13: 0.5 fails only the Buffalo minimum 428 < 480); 10000 steps x 3 seeds
+# base = candidate A: preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.15
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate weather.droughtHerbivoreUpkeep=0.6
+candidate weather.droughtHerbivoreUpkeep=0.65
+candidate weather.droughtHerbivoreUpkeep=0.5,species.buffalo.grazingRate=0.11
+candidate weather.droughtHerbivoreUpkeep=0.5,species.buffalo.grazingRate=0.12
+candidate weather.droughtHerbivoreUpkeep=0.6,species.buffalo.grazingRate=0.12

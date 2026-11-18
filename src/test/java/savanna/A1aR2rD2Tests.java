@@ -14,8 +14,8 @@ public final class A1aR2rD2Tests
 {
     private static final String FROZEN_2111_STEP_150 =
         // Deterministic step-150 trace, updated whenever EcologyRules.VERSION
-        // changes. Intentional trace migration: v3.2-c4-l4
-        "3890adc137077c5e53852fec9a77a9d3c613e6ee8d3309d6c05ca6fbe5481b92";
+        // changes. Intentional trace migration: v3.3-p1-herbivore
+        "ec27caa9b5661e69f57d68c1abc471e7df2cd3c26e1821280324676f16ebd579";
 
     private A1aR2rD2Tests()
     {

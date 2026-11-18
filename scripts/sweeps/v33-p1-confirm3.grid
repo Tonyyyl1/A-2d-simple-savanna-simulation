@@ -1,0 +1,4 @@
+# v3.3 P-1 confirmation of the two N1/N2 combinations with the smallest hotspot span at 3000 steps (4 dev seeds x 10000 steps)
+base init.lion=0,init.cheetah=0
+candidate grazing.fullIntakeFill=0.3,grazing.refugeFill=0.1,repro.herbivoreConditionMin=0.45
+candidate grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1

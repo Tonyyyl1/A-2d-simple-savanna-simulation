@@ -1,0 +1,5 @@
+# v3.3 P-1 confirmation of the three best round-2 candidates (4 dev seeds x 10000 steps)
+base init.lion=0,init.cheetah=0
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,species.gazelle.breedingProbability=0.09
+candidate species.gazelle.breedingProbability=0.064,species.gazelle.maxLitterSize=1,grass.floorRate=0.008
+candidate repro.grassGate=1,repro.grassGateSpecies=1,repro.grassMin=0.25,grass.floorRate=0.008

@@ -104,6 +104,6 @@ public final class ProductionTargetState
 
     private static Location copy(Location value)
     {
-        return value == null ? null : new Location(value.row(), value.col());
+        return value;
     }
 }

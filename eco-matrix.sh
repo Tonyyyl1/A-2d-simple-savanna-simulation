@@ -1,12 +1,16 @@
 #!/usr/bin/env sh
 # T3 ecology seed matrix (plan v3.0 §2.4, §7 M3-2).
-#   [ECO_SET=default|holdout|procedural] ./eco-matrix.sh <classpath> <output-dir> [--enforce]
+#   [ECO_SET=default|holdout|procedural|long] ./eco-matrix.sh <classpath> <output-dir> [--enforce]
 # default: 5000 steps at seed 1111 and 1000 steps at seeds 1111..5111;
 # holdout: 1000 steps at seeds 6111..10111 (run once, after parameters are
 # frozen); procedural: G-ECO-2 (seeds 3111..5111, 1000 steps) on the
-# PROCEDURAL_V2 terrain seeds 4201, 9317 and 17689. Every run has thirst off
-# and on, in parallel JVMs (ECO_JOBS, default 3; each capped at
-# -Xmx$ECO_XMX, default 1g, parallel GC on one thread). Writes one log per run plus
+# PROCEDURAL_V2 terrain seeds 4201, 9317 and 17689; long (P-0): 20000 steps at
+# the development seeds 1111, 2111, 11111, 12111 with thirst off only, then the
+# verdicts of G-ECO-6 and G-ECO-7 (scripts/long-gates.sh; with --enforce a FAIL
+# of either gate also fails the script). Every other run has thirst off
+# and on, in parallel JVMs (ECO_JOBS, default 4; each capped at
+# -Xmx$ECO_XMX, default 768m, parallel GC on one thread; 768m x 4 is verified for the
+# S3 kernel only, the unmerged baseline kernel needs ECO_XMX=1g ECO_JOBS=3). Writes one log per run plus
 # summary.txt. Without --enforce the gate verdicts are reported
 # only; with it, a FAIL in any thirst-off run (or any ERROR) makes the script
 # exit 1; thirst-on FAILs are recorded, not enforced (B2).
@@ -17,8 +21,8 @@ OUT="${2:?usage: eco-matrix.sh <classpath> <output-dir> [--enforce]}"
 ENFORCE="${3:-}"
 test -z "$ENFORCE" || test "$ENFORCE" = --enforce || {
     echo 'third argument must be --enforce' >&2; exit 2; }
-JOBS="${ECO_JOBS:-3}"
-ECO_XMX="${ECO_XMX:-1g}"
+JOBS="${ECO_JOBS:-4}"
+ECO_XMX="${ECO_XMX:-768m}"
 export ECO_XMX
 mkdir -p "$OUT"
 
@@ -42,6 +46,11 @@ case "${ECO_SET:-default}" in
             do
                 RUNS="$RUNS $SEED:1000:off:$TERRAIN $SEED:1000:on:$TERRAIN"
             done
+        done ;;
+    long)
+        for SEED in 1111 2111 11111 12111
+        do
+            RUNS="$RUNS $SEED:20000:off"
         done ;;
     *) echo "unknown ECO_SET: $ECO_SET" >&2; exit 2 ;;
 esac
@@ -71,6 +80,12 @@ EOF
     done
 } > "$OUT/summary.txt"
 cat "$OUT/summary.txt"
+if test "${ECO_SET:-default}" = long
+then
+    "$(dirname "$0")/scripts/long-gates.sh" "$OUT/summary.txt" ${ENFORCE:+"$ENFORCE"} |
+        tee "$OUT/long-gates.txt" || {
+        echo 'ECO_MATRIX FAIL: long-run gate' >&2; exit 1; }
+fi
 
 # B2 (user decision 2026-10-28): only thirst-off verdicts are enforced; thirst-on
 # runs are reported (their gate= field stays in summary.txt) but never fail the

@@ -5,8 +5,10 @@
 # into <out-dir>/classes; later calls with the same <out-dir> reuse those frozen
 # classes, so editing the source never changes a sweep that is still running or
 # being resumed. Options: --steps=1000 --seeds=1111,2111 --thirst=off,on
-# --jobs=N (default ECO_JOBS or 3) --rank-only. Each run JVM gets -Xmx$ECO_XMX
-# (default 1g) and one-thread parallel GC, about 1.2 GB and one core; keep the total
+# --jobs=N (default ECO_JOBS or 4) --rank-only. Each run JVM gets -Xmx$ECO_XMX
+# (default 768m) and one-thread parallel GC, about 0.9 GB and one core; keep the total
+# (defaults 768m x 4 are verified for the S3 kernel only; the unmerged baseline kernel
+# needs ECO_XMX=1g ECO_JOBS=3, see docs/HANDOFF_PERF_2026-11-15.zh.md)
 # well inside physical memory and never run a sweep next to ./check.sh
 # milestone. See EcologySweep for the grid format and the ranking.
 set -eu

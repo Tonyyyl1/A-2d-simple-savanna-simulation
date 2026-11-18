@@ -114,6 +114,27 @@ public final class PositionTopology
         return locationsFor(adjacentPassable[indexOf(location)]);
     }
 
+    /**
+     * A new, mutable list of the passable neighbours of {@code location}, in the same
+     * order as {@link #getAdjacentPassable}; the caller may shuffle or filter it in place,
+     * so no intermediate list or copy is built.
+     */
+    List<Location> newAdjacentPassableList(Location location)
+    {
+        if(!inBounds(location)) {
+            return new ArrayList<>(0);
+        }
+        int[] cells = adjacentPassable[indexOf(location)];
+        if(cells == null || cells.length == 0) {
+            return new ArrayList<>(0);
+        }
+        List<Location> result = new ArrayList<>(cells.length);
+        for(int cell : cells) {
+            result.add(locationFor(cell));
+        }
+        return result;
+    }
+
     /** Returns the deterministic precomputed BFS order, capped by request. */
     public List<Location> getSearchFallbacks(Location origin, int budget)
     {

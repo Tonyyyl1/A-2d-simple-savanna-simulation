@@ -1,23 +1,23 @@
-# Savanna Simulation v3.2-2d-final
+# Savanna Simulation v3.3-merge-preview
 
 [English](README.md)
 
-**正式 2D 版**
+**开发预览**
 
-关闭口渴时，历史验收覆盖 5,000 步。已记录的 20,000 步测试中，猎豹在第 10,900 步灭绝。3D 浏览器界面随包提供预览。
+合并 P-1 草食动物参数与性能线。P-2 捕食者调优及 P-3 口渴验收仍未完成。
 
 项目从 David J. Barnes 和 Michael Kölling 的 BlueJ 狐狸与兔子示例扩展而来，模拟五种动物的捕食、放牧、疾病与天气。
 
 ## 使用 Java 17 或以上版本
 
 ```sh
-java -jar savanna-simulation-v3.2-2d-final.jar
+java -jar savanna-simulation-v3.3-merge-preview.jar
 ```
 
 ## 3D 浏览器预览
 
 ```sh
-java -Xmx2g -cp savanna-simulation-v3.2-2d-final.jar savanna.SimServer --no-open
+java -Xmx2g -cp savanna-simulation-v3.3-merge-preview.jar savanna.SimServer --no-open
 ```
 
 打开 http://127.0.0.1:8787/。

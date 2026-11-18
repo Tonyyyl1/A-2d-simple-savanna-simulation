@@ -1,0 +1,4 @@
+# v3.3 P-1 round 15: the two round-14 passers on the 4th dev seed 12111 (10000 steps); base = candidate A for comparison
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate weather.droughtHerbivoreUpkeep=0.6
+candidate weather.droughtHerbivoreUpkeep=0.6,species.buffalo.grazingRate=0.12

@@ -1,0 +1,9 @@
+# v3.3 P-1 round 6: N1 (0.5/0.1) and a tighter shared prey crowding limit (capacity.preyOverload, default 20) against the hotspots
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1
+candidate capacity.preyOverload=15
+candidate capacity.preyOverload=12
+candidate capacity.preyOverload=10
+candidate capacity.preyOverload=15,repro.herbivoreConditionMin=0.3
+candidate capacity.preyOverload=15,grass.capacityScale=0.4
+candidate capacity.preyOverload=12,grass.capacityScale=0.4
+candidate capacity.preyOverload=15,grazing.refugeFill=0.15

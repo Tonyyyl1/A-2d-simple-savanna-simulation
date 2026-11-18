@@ -61,6 +61,6 @@ public final class StepStartLocalCapacityFact
 
     private static Location copy(Location location)
     {
-        return new Location(location.row(), location.col());
+        return java.util.Objects.requireNonNull(location);
     }
 }

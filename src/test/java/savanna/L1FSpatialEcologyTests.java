@@ -36,6 +36,9 @@ public final class L1FSpatialEcologyTests
         testStepCacheBoundedAndReplaced();
         testD2HuntOpportunityEquivalence();
         testLegacyProjectionTransparency();
+        testWindowScanMatchesBruteForce();
+        testPassabilityWindowMatchesNavigator();
+        testMateWindowSearchMatchesListPath();
         TestSupport.finishGroup("L1F_FIXTURES");
     }
 
@@ -362,6 +365,304 @@ public final class L1FSpatialEcologyTests
             legacy.getLivingPopulation(), projected.getLivingPopulation());
         TestSupport.assertTrue("L1F F10 legacy occupant identity exact",
             identitiesExact);
+    }
+
+    /** S3-c: the cell-code window scan and the default scan match a per-cell brute force. */
+    private static void testWindowScanMatchesBruteForce()
+    {
+        int depth = 13;
+        int width = 16;
+        TerrainMap terrain = openTerrain(depth, width);
+        Field field = new Field(depth, width);
+        AnimalIdentityAllocator identities = new AnimalIdentityAllocator();
+        Random placement = new Random(4242L);
+        List<SpeciesFactory> factories = new ArrayList<>();
+        for(SpeciesFactory factory : SpeciesRegistry.getFactories()) factories.add(factory);
+        int placed = 0;
+        for(int attempt = 0; placed < 45 && attempt < 600; attempt++) {
+            Location at = new Location(placement.nextInt(depth), placement.nextInt(width));
+            if(field.getAnimalAt(at) != null) continue;
+            SavannahAnimal animal = factories.get(placed % factories.size()).create(
+                false, at, new Random(500L + placed), identities);
+            field.placeAnimal(animal, at);
+            placed++;
+        }
+        SpatialEcologyView indexed = SpatialEcologyIndex.capture(3, field, terrain);
+        SpatialEcologyView defaulted = withoutWindowOverride(indexed);
+        List<String> speciesChoices = new ArrayList<>();
+        speciesChoices.add(null);
+        for(SpeciesFactory factory : factories) {
+            speciesChoices.add(factory.getProfile().getName());
+        }
+        speciesChoices.add("Unicorn");
+        Location[] origins = {
+            new Location(0, 0), new Location(0, width - 1), new Location(depth - 1, 0),
+            new Location(depth - 1, width - 1), new Location(6, 8), new Location(3, 3),
+            new Location(11, 14)
+        };
+        int[] radii = {0, 1, 2, 5, 9, 40};
+        int checks = 0;
+        int indexedMismatches = 0;
+        int defaultMismatches = 0;
+        int nonEmpty = 0;
+        for(Location origin : origins) {
+            for(int radius : radii) {
+                for(String species : speciesChoices) {
+                    for(boolean predatorsOnly : new boolean[] {false, true}) {
+                        List<Long> expected = bruteWindowIds(indexed, origin, radius,
+                            species, predatorsOnly);
+                        checks++;
+                        if(!expected.isEmpty()) nonEmpty++;
+                        if(!expected.equals(windowIds(indexed, origin, radius, species,
+                                                      predatorsOnly))) indexedMismatches++;
+                        if(!expected.equals(windowIds(defaulted, origin, radius, species,
+                                                      predatorsOnly))) defaultMismatches++;
+                    }
+                }
+            }
+        }
+        TestSupport.assertTrue("L1F F11 window scan oracle is not trivially empty",
+            checks > 500 && nonEmpty > 200);
+        TestSupport.assertEquals("L1F F11 indexed window scan matches brute force", 0,
+            indexedMismatches);
+        TestSupport.assertEquals("L1F F11 default window scan matches brute force", 0,
+            defaultMismatches);
+        TestSupport.assertTrue("L1F F11 null origin offers nothing",
+            windowIds(indexed, null, 3, null, false).isEmpty() &&
+            windowIds(defaulted, null, 3, null, false).isEmpty());
+    }
+
+    /** S3-d: the terrain's shared reachability window equals the navigator within range. */
+    private static void testPassabilityWindowMatchesNavigator()
+    {
+        int depth = 15;
+        int width = 18;
+        TerrainMap scattered = openTerrain(depth, width);
+        Random blocking = new Random(777L);
+        for(int row = 0; row < depth; row++) {
+            for(int col = 0; col < width; col++) {
+                if(blocking.nextInt(100) < 22) {
+                    setTerrain(scattered, new Location(row, col), TerrainType.WATERHOLE);
+                }
+            }
+        }
+        TerrainMap open = openTerrain(11, 12);
+        int mismatches = 0;
+        int cells = 0;
+        int reachableCells = 0;
+        int blockedOrigins = 0;
+        for(TerrainMap terrain : new TerrainMap[] {scattered, open}) {
+            TerrainPassabilityIndex index = terrain.passability();
+            for(int row = 0; row < terrain.getDepth(); row += 2) {
+                for(int col = 0; col < terrain.getWidth(); col += 3) {
+                    Location origin = new Location(row, col);
+                    if(!terrain.isPassableAt(row, col)) {
+                        blockedOrigins++;
+                        continue;
+                    }
+                    for(int range : new int[] {1, 2, 3, 5, 8}) {
+                        TerrainPassabilityIndex.Window window = index.window(origin, range);
+                        TerrainNavigator.Reachability navigator =
+                            TerrainNavigator.reachableDistances(terrain, origin, range);
+                        for(int r = window.firstRow; r < window.firstRow + window.localDepth; r++) {
+                            for(int c = window.firstCol;
+                                c < window.firstCol + window.localWidth; c++) {
+                                int expected = navigator.distanceTo(new Location(r, c));
+                                if(expected < 0 || expected > range) expected = -1;
+                                cells++;
+                                if(expected >= 0) reachableCells++;
+                                if(window.distanceAt(r, c) != expected) mismatches++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        TestSupport.assertTrue("L1F F12 window oracle covers blocked and open terrain",
+            cells > 2000 && reachableCells > 1000 && blockedOrigins > 5);
+        TestSupport.assertEquals("L1F F12 passability window equals navigator distances", 0,
+            mismatches);
+    }
+
+    /**
+     * S3-i: the window-scan mate search equals the shuffled-list path in list size, answer and
+     * the random stream it leaves behind, on a scattered-blocked terrain with a mixed herd.
+     */
+    private static void testMateWindowSearchMatchesListPath()
+    {
+        int depth = 22;
+        int width = 26;
+        Field field = new Field(depth, width);
+        AnimalIdentityAllocator identities = new AnimalIdentityAllocator();
+        Random placement = new Random(31337L);
+        List<SpeciesFactory> factories = new ArrayList<>();
+        for(SpeciesFactory factory : SpeciesRegistry.getFactories()) factories.add(factory);
+        List<SavannahAnimal> animals = new ArrayList<>();
+        for(int attempt = 0; animals.size() < 90 && attempt < 3000; attempt++) {
+            Location at = new Location(placement.nextInt(depth), placement.nextInt(width));
+            if(field.getAnimalAt(at) != null) continue;
+            SavannahAnimal animal = factories.get(animals.size() % factories.size()).create(
+                false, at, new Random(900L + animals.size()), identities);
+            if(placement.nextInt(10) < 7) makeAdult(animal);
+            field.placeAnimal(animal, at);
+            animals.add(animal);
+        }
+        StepStartInteractionGeometry geometry = StepStartInteractionGeometry.capture(field);
+
+        // (a) list size and (b) random stream, from interior, corner, edge and outside origins
+        Location[] origins = {
+            new Location(11, 13), new Location(0, 0), new Location(0, width - 1),
+            new Location(depth - 1, 0), new Location(depth - 1, width - 1),
+            new Location(0, 9), new Location(depth - 1, 9), new Location(7, 0),
+            new Location(7, width - 1), new Location(-2, 5), new Location(depth + 1, width + 3),
+            null
+        };
+        int[] ranges = {-1, 0, 1, 2, 5, 30};
+        int sizeMismatches = 0;
+        int streamMismatches = 0;
+        int comparisons = 0;
+        for(Location origin : origins) {
+            for(int range : ranges) {
+                Random listRandom = new Random(4401L + range);
+                int listSize = geometry.getLocationsWithin(origin, range, listRandom).size();
+                Random windowRandom = new Random(4401L + range);
+                int count = geometry.countLocationsWithin(origin, range);
+                StepStartInteractionGeometry.drawShuffleStream(count, windowRandom);
+                comparisons++;
+                if(count != listSize) sizeMismatches++;
+                if(listRandom.nextLong() != windowRandom.nextLong()) streamMismatches++;
+            }
+        }
+        TestSupport.assertEquals("L1F F13 window cell count equals the list size", 0,
+            sizeMismatches);
+        TestSupport.assertEquals("L1F F13 shuffle draws leave the same random stream", 0,
+            streamMismatches);
+        TestSupport.assertTrue("L1F F13 count comparison ran", comparisons == 72);
+
+        // (c) the answer on a scattered-blocked terrain, two identical contexts
+        SimulationContext windowContext = new SimulationContext(depth, width,
+            SimulationConfig.baseline());
+        SimulationContext listContext = new SimulationContext(depth, width,
+            SimulationConfig.baseline());
+        blockScattered(windowContext.getTerrainMap(), 5150L, 20);
+        blockScattered(listContext.getTerrainMap(), 5150L, 20);
+        MateFindingBreedingSystem system = new MateFindingBreedingSystem();
+        InteractionGeometry listOnly = new ListOnlyGeometry(geometry);
+        int answerMismatches = 0;
+        int streamAfterMismatches = 0;
+        int eligibleCount = 0;
+        int ineligibleCount = 0;
+        for(SavannahAnimal parent : animals) {
+            MateFindingBreedingSystem.MateQueryResult window =
+                system.findMateNearby(parent, geometry, windowContext);
+            MateFindingBreedingSystem.MateQueryResult list =
+                system.findMateNearby(parent, listOnly, listContext);
+            if(window.getShuffleInputSize() != list.getShuffleInputSize() ||
+               window.isMateEligible() != list.isMateEligible()) answerMismatches++;
+            if(windowContext.getRandom().nextLong() != listContext.getRandom().nextLong()) {
+                streamAfterMismatches++;
+            }
+            if(list.isMateEligible()) eligibleCount++;
+            else ineligibleCount++;
+        }
+        TestSupport.assertTrue("L1F F13 mate answer oracle has both outcomes",
+            eligibleCount > 5 && ineligibleCount > 5);
+        TestSupport.assertEquals("L1F F13 window mate search equals the list path", 0,
+            answerMismatches);
+        TestSupport.assertEquals("L1F F13 mate search leaves the same random stream", 0,
+            streamAfterMismatches);
+    }
+
+    private static void blockScattered(TerrainMap terrain, long seed, int percent)
+    {
+        Random blocking = new Random(seed);
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                if(blocking.nextInt(100) < percent) {
+                    setTerrain(terrain, new Location(row, col), TerrainType.WATERHOLE);
+                }
+            }
+        }
+    }
+
+    /** Forwards to a geometry but is not a StepStartInteractionGeometry, so the list path runs. */
+    private static final class ListOnlyGeometry implements InteractionGeometry
+    {
+        private final InteractionGeometry delegate;
+
+        ListOnlyGeometry(InteractionGeometry delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        @Override public Animal getAnimalAt(Location location)
+        { return delegate.getAnimalAt(location); }
+        @Override public List<Location> getLocationsWithin(Location origin, int range,
+                                                           Random random)
+        { return delegate.getLocationsWithin(origin, range, random); }
+        @Override public int getLivingPopulation() { return delegate.getLivingPopulation(); }
+        @Override public int getDepth() { return delegate.getDepth(); }
+        @Override public int getWidth() { return delegate.getWidth(); }
+    }
+
+    private static List<Long> windowIds(SpatialEcologyView view, Location origin,
+                                        int radius, String species, boolean predatorsOnly)
+    {
+        List<Long> ids = new ArrayList<>();
+        view.forEachAnimalFactAround(origin, radius, species, predatorsOnly,
+            fact -> ids.add(fact.getId()));
+        return ids;
+    }
+
+    private static List<Long> bruteWindowIds(SpatialEcologyView view, Location origin,
+                                             int radius, String species,
+                                             boolean predatorsOnly)
+    {
+        List<Long> ids = new ArrayList<>();
+        for(int row = Math.max(0, origin.row() - radius);
+            row <= Math.min(view.getDepth() - 1, origin.row() + radius); row++) {
+            for(int col = Math.max(0, origin.col() - radius);
+                col <= Math.min(view.getWidth() - 1, origin.col() + radius); col++) {
+                SpatialAnimalFact fact = view.getAnimalFactAt(new Location(row, col));
+                if(fact != null && (species == null || species.equals(fact.getSpecies())) &&
+                   (!predatorsOnly || fact.isPredator())) {
+                    ids.add(fact.getId());
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** A view that delegates everything except the window scan, so the default runs. */
+    private static SpatialEcologyView withoutWindowOverride(SpatialEcologyView base)
+    {
+        return new SpatialEcologyView() {
+            @Override public int getStep() { return base.getStep(); }
+            @Override public int getDepth() { return base.getDepth(); }
+            @Override public int getWidth() { return base.getWidth(); }
+            @Override public int getCapturedAnimalCount()
+            { return base.getCapturedAnimalCount(); }
+            @Override public List<SpatialAnimalFact> getAnimalFacts()
+            { return base.getAnimalFacts(); }
+            @Override public SpatialAnimalFact getAnimalFact(long animalId)
+            { return base.getAnimalFact(animalId); }
+            @Override public SpatialAnimalFact getAnimalFactAt(Location location)
+            { return base.getAnimalFactAt(location); }
+            @Override public ReachableResourceFact getReachableResources(Location origin,
+                int range, SpeciesProfile profile)
+            { return base.getReachableResources(origin, range, profile); }
+            @Override public ReachableResourceFact getReachableResources(Location origin,
+                int range, String profileKey)
+            { return base.getReachableResources(origin, range, profileKey); }
+            @Override public LocalOccupancyFact getLocalOccupancy(Location origin,
+                int range, SpeciesProfile profile)
+            { return base.getLocalOccupancy(origin, range, profile); }
+            @Override public LocalOccupancyFact getLocalOccupancy(Location origin,
+                int range, String profileKey)
+            { return base.getLocalOccupancy(origin, range, profileKey); }
+            @Override public SpatialQueryLedger getQueryLedger()
+            { return base.getQueryLedger(); }
+        };
     }
 
     private static boolean hasNoForbiddenReference(Class<?> type)
