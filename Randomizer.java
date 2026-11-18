@@ -11,9 +11,10 @@ import java.util.Random;
 public class Randomizer
 {
     // The default seed for control of randomization.
-    private static final int SEED = 1111;
+    private static final long DEFAULT_SEED = 1111L;
+    private static long currentSeed = DEFAULT_SEED;
     // A shared Random object, if required.
-    private static final Random rand = new Random(SEED);
+    private static final Random rand = new Random(DEFAULT_SEED);
     // Determine whether a shared random generator is to be provided.
     private static final boolean useShared = true;
 
@@ -45,8 +46,24 @@ public class Randomizer
      */
     public static void reset()
     {
+        reset(DEFAULT_SEED);
+    }
+
+    public static void reset(long seed)
+    {
+        currentSeed = seed;
         if(useShared) {
-            rand.setSeed(SEED);
+            rand.setSeed(seed);
         }
+    }
+
+    public static long getSeed()
+    {
+        return currentSeed;
+    }
+
+    public static long getDefaultSeed()
+    {
+        return DEFAULT_SEED;
     }
 }

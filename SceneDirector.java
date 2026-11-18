@@ -18,7 +18,7 @@ public class SceneDirector
 {
     private static final int MAX_SPECIAL_SCENES = 3;
     private static final int MAX_MOVE_ACTORS = 24;
-    private static final int MAX_BEHAVIOR_ACTORS = 20;
+    private static final int TARGET_BEHAVIOR_ACTORS = 20;
     public static final double AMBIENT_DURATION_MS = 2400.0;
 
     public static class Keyframe
@@ -178,6 +178,7 @@ public class SceneDirector
             }
             Scene scene = buildSceneFor(event, field);
             if(scene != null) {
+                scene = sanitizeScene(scene, terrainMap, field);
                 scenes.add(scene);
                 for(SceneActor actor : scene.actors) {
                     reservedActors.add(actor.animalId);
@@ -196,7 +197,7 @@ public class SceneDirector
             }
             SceneActor actor = buildMoveActor(event, field);
             if(actor != null) {
-                moveActors.add(actor);
+                moveActors.add(sanitizeActor(actor, terrainMap, field));
                 if(firstMove == null) {
                     firstMove = event;
                 }
@@ -215,11 +216,27 @@ public class SceneDirector
                                    viewportCells);
     }
 
+    public static List<SceneActor> buildAmbientActors(Field field,
+                                                      TerrainMap terrainMap,
+                                                      Rectangle viewportCells)
+    {
+        return buildBehaviorActors(new ArrayList<SimulationEvent>(), field,
+                                   terrainMap, viewportCells);
+    }
+
     public static List<SceneActor> buildBehaviorActors(List<SimulationEvent> events,
                                                        Field field,
                                                        Rectangle viewportCells)
     {
-        List<SavannahAnimal> candidates = visibleAnimals(field, viewportCells);
+        return buildBehaviorActors(events, field, null, viewportCells);
+    }
+
+    public static List<SceneActor> buildBehaviorActors(List<SimulationEvent> events,
+                                                       Field field,
+                                                       TerrainMap terrainMap,
+                                                       Rectangle viewportCells)
+    {
+        List<SavannahAnimal> candidates = behaviorCandidates(field, viewportCells);
         Map<Long, SimulationEvent> latestEvents = latestEventsByAnimal(events);
         double centerRow = viewportCells.y + viewportCells.height / 2.0;
         double centerCol = viewportCells.x + viewportCells.width / 2.0;
@@ -231,17 +248,219 @@ public class SceneDirector
                           centerRow, centerCol))
             .thenComparingLong(Animal::getId));
 
-        if(candidates.size() > MAX_BEHAVIOR_ACTORS) {
-            candidates = new ArrayList<>(
-                candidates.subList(0, MAX_BEHAVIOR_ACTORS));
-        }
-
         List<SceneActor> actors = new ArrayList<>();
         for(SavannahAnimal animal : candidates) {
-            actors.add(buildBehaviorActor(animal,
-                latestEvents.get(animal.getId()), candidates, field));
+            SceneActor actor = buildBehaviorActor(animal,
+                latestEvents.get(animal.getId()), candidates, field);
+            actors.add(sanitizeActor(actor, terrainMap, field));
         }
         return actors;
+    }
+
+    private static Scene sanitizeScene(Scene scene, TerrainMap terrainMap,
+                                       Field field)
+    {
+        if(scene == null || terrainMap == null) {
+            return scene;
+        }
+        List<SceneActor> actors = new ArrayList<>();
+        for(SceneActor actor : scene.actors) {
+            actors.add(sanitizeActor(actor, terrainMap, field));
+        }
+        return new Scene(actors, scene.vfx, scene.durationMs, scene.source);
+    }
+
+    private static SceneActor sanitizeActor(SceneActor actor,
+                                            TerrainMap terrainMap,
+                                            Field field)
+    {
+        if(actor == null || terrainMap == null) {
+            return actor;
+        }
+        List<Keyframe> frames = new ArrayList<>();
+        for(Keyframe frame : actor.keyframes) {
+            frames.add(sanitizeKeyframe(frame, terrainMap, field));
+        }
+        SceneActor sanitized = new SceneActor(actor.species, frames,
+            actor.speedFactor, actor.tremble, actor.animalId);
+        if(actorTrajectoryTouchesWater(sanitized, terrainMap)) {
+            sanitized = staticSafeActor(sanitized, terrainMap, field);
+        }
+        return sanitized;
+    }
+
+    private static boolean actorTrajectoryTouchesWater(SceneActor actor,
+                                                       TerrainMap terrainMap)
+    {
+        double duration = 0.0;
+        for(Keyframe frame : actor.keyframes) {
+            duration = Math.max(duration, frame.timeMs);
+        }
+        for(int time = 0; time <= duration; time += 100) {
+            Keyframe frame = actor.at(time);
+            if(frame.alpha > 0.01 &&
+               visualFootprintTouchesWater(frame.row, frame.col, terrainMap,
+                                           frame.scale)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static SceneActor staticSafeActor(SceneActor actor,
+                                              TerrainMap terrainMap,
+                                              Field field)
+    {
+        Keyframe anchor = actor.keyframes.isEmpty()
+            ? new Keyframe(0, 0, 0, 1.0, 0.0, 0.0, null, null)
+            : actor.keyframes.get(0);
+        Location safe = nearestSafeVisualCell(anchor.row, anchor.col,
+            terrainMap, field, 48);
+        if(safe == null) {
+            return hiddenActor(actor);
+        }
+        List<Keyframe> frames = new ArrayList<>();
+        for(Keyframe frame : actor.keyframes) {
+            frames.add(new Keyframe(frame.timeMs, safe.row(), safe.col(),
+                frame.scale, frame.alpha, frame.filterAlpha, frame.marker,
+                frame.markerColor));
+        }
+        return new SceneActor(actor.species, frames, actor.speedFactor,
+                              actor.tremble, actor.animalId);
+    }
+
+    private static Keyframe sanitizeKeyframe(Keyframe frame,
+                                             TerrainMap terrainMap,
+                                             Field field)
+    {
+        if(!visualFootprintTouchesWater(frame.row, frame.col, terrainMap,
+                                        frame.scale)) {
+            return frame;
+        }
+        Location nearest = nearestSafeVisualCell(frame.row, frame.col,
+            terrainMap, field, 48);
+        if(nearest == null) {
+            return new Keyframe(frame.timeMs, frame.row, frame.col,
+                frame.scale, 0.0, frame.filterAlpha, null, null);
+        }
+        return new Keyframe(frame.timeMs, nearest.row(), nearest.col(),
+            frame.scale, frame.alpha, frame.filterAlpha, frame.marker,
+            frame.markerColor);
+    }
+
+    private static SceneActor hiddenActor(SceneActor actor)
+    {
+        List<Keyframe> frames = new ArrayList<>();
+        for(Keyframe frame : actor.keyframes) {
+            frames.add(new Keyframe(frame.timeMs, frame.row, frame.col,
+                frame.scale, 0.0, frame.filterAlpha, null, null));
+        }
+        return new SceneActor(actor.species, frames, actor.speedFactor,
+                              actor.tremble, actor.animalId);
+    }
+
+    public static boolean visualFootprintTouchesWater(double row, double col,
+                                                      TerrainMap terrainMap)
+    {
+        return visualFootprintTouchesWater(row, col, terrainMap, 1.15);
+    }
+
+    private static boolean visualFootprintTouchesWater(double row, double col,
+                                                       TerrainMap terrainMap,
+                                                       double scale)
+    {
+        if(terrainMap == null) {
+            return false;
+        }
+        return VisualFootprint.inspectActorTouchesWater(row, col,
+            Math.max(1.15, scale),
+            terrainMap, VisualGridGeometry.preferredForTerrain(terrainMap));
+    }
+
+    private static Location nearestSafeVisualCell(double row, double col,
+                                                  TerrainMap terrainMap,
+                                                  Field field,
+                                                  int maxRange)
+    {
+        Location nearest = nearestCellMatching(row, col, terrainMap, field,
+            maxRange, true);
+        return nearest;
+    }
+
+    private static Location nearestPassableCell(double row, double col,
+                                                TerrainMap terrainMap,
+                                                Field field,
+                                                int maxRange)
+    {
+        return nearestCellMatching(row, col, terrainMap, field, maxRange, false);
+    }
+
+    private static Location nearestCellMatching(double row, double col,
+                                                TerrainMap terrainMap,
+                                                Field field,
+                                                int maxRange,
+                                                boolean requireSafeFootprint)
+    {
+        int baseRow = clampCell((int)Math.floor(row), field.getDepth());
+        int baseCol = clampCell((int)Math.floor(col), field.getWidth());
+        for(int range = 0; range <= maxRange; range++) {
+            for(int dr = -range; dr <= range; dr++) {
+                for(int dc = -range; dc <= range; dc++) {
+                    if(Math.max(Math.abs(dr), Math.abs(dc)) != range) {
+                        continue;
+                    }
+                    int nextRow = clampCell(baseRow + dr, field.getDepth());
+                    int nextCol = clampCell(baseCol + dc, field.getWidth());
+                    Location location = new Location(nextRow, nextCol);
+                    if(!terrainMap.isPassable(location)) {
+                        continue;
+                    }
+                    if(requireSafeFootprint &&
+                       visualFootprintTouchesWater(nextRow, nextCol, terrainMap)) {
+                        continue;
+                    }
+                    return location;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int clampCell(int value, int max)
+    {
+        return Math.max(0, Math.min(max - 1, value));
+    }
+
+    private static List<SavannahAnimal> behaviorCandidates(Field field,
+                                                           Rectangle viewportCells)
+    {
+        List<SavannahAnimal> candidates = visibleAnimals(field, viewportCells);
+        int padding = 2;
+        while(candidates.size() < TARGET_BEHAVIOR_ACTORS) {
+            Rectangle expanded = expand(viewportCells, padding, field);
+            if(expanded.equals(viewportCells) ||
+               expanded.width >= field.getWidth() &&
+               expanded.height >= field.getDepth()) {
+                candidates = visibleAnimals(field, expanded);
+                break;
+            }
+            candidates = visibleAnimals(field, expanded);
+            padding *= 2;
+        }
+        return candidates;
+    }
+
+    private static Rectangle expand(Rectangle viewportCells, int padding,
+                                    Field field)
+    {
+        int x = Math.max(0, viewportCells.x - padding);
+        int y = Math.max(0, viewportCells.y - padding);
+        int maxX = Math.min(field.getWidth() - 1,
+            viewportCells.x + viewportCells.width - 1 + padding);
+        int maxY = Math.min(field.getDepth() - 1,
+            viewportCells.y + viewportCells.height - 1 + padding);
+        return new Rectangle(x, y, Math.max(1, maxX - x + 1),
+                             Math.max(1, maxY - y + 1));
     }
 
     private static Map<Long, SimulationEvent> latestEventsByAnimal(
@@ -469,7 +688,7 @@ public class SceneDirector
         double farCol = clamp(col + vector[1], 0, field.getWidth() - 1);
 
         List<Keyframe> frames = new ArrayList<>();
-        String marker = stateMarker(animal);
+        String marker = stateMarker(animal, herd.size());
         frames.add(new Keyframe(0, row, col, 0.98, 0.88, infectedFilter(animal),
                                 marker, markerColor(marker)));
         frames.add(new Keyframe(600, midRow, midCol, 1.03, 0.95,
@@ -507,7 +726,7 @@ public class SceneDirector
         return "move";
     }
 
-    private static String stateMarker(SavannahAnimal animal)
+    private static String stateMarker(SavannahAnimal animal, int herdSize)
     {
         if(animal.isInfected()) {
             return "sick";
@@ -515,7 +734,12 @@ public class SceneDirector
         if(animal.isSurvivalCritical()) {
             return "seek";
         }
-        return animal.getProfile().isPredator() ? "prowl" : "forage";
+        String marker = animal.getProfile().isPredator() ? "prowl" : "forage";
+        if(herdSize <= 32) {
+            return marker;
+        }
+        int spacing = Math.min(9, Math.max(2, herdSize / 28));
+        return animal.getId() % spacing == 0 ? marker : null;
     }
 
     private static SavannahAnimal nearestPredator(SavannahAnimal animal,

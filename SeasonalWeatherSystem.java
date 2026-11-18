@@ -5,9 +5,19 @@ import java.util.Random;
  */
 public class SeasonalWeatherSystem implements WeatherSystem
 {
-    private final Random rand = Randomizer.getRandom();
+    private final Random rand;
     private WeatherType currentWeather = WeatherType.CLEAR;
     private int stepsUntilChange = 18;
+
+    public SeasonalWeatherSystem()
+    {
+        this(Randomizer.getRandom());
+    }
+
+    public SeasonalWeatherSystem(Random rand)
+    {
+        this.rand = rand;
+    }
 
     public void update(SimulationContext context)
     {

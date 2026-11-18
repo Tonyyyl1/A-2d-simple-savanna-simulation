@@ -17,10 +17,22 @@ public class SimulationSystemTests
         testStaminaAffectsPredationContest();
         testBreedingRequiresMate();
         testSimulationEventBus();
+        testEventListenerReceivesRecordedEvents();
+        testEventListenerSurvivesSimulatorReset();
+        testEventAccumulatorOutlivesRecentEventWindow();
+        testEventAccumulatorCountsLocationsByType();
+        testEventAccumulatorClearResetsCounts();
+        testSimulationSnapshotIsImmutable();
         testDiseaseLifecycleEvents();
         testMovementEventsAndScenes();
         testAmbientInspectActors();
         testTerrainMapGeneration();
+        testWaterSafetyAudit();
+        testVisualGridGeometryMatchesTerrainCells();
+        testOrdinaryFootprintUsesSharedGeometry();
+        testInspectFootprintUsesSharedGeometry();
+        testVisualWaterMaskCoversShorelineFootprint();
+        testAnimalStatusLogRows();
         testTerminalDiagnostics();
         testSimulationConfigScaling();
         testDiseaseMultiplierPressure();
@@ -170,6 +182,130 @@ public class SimulationSystemTests
             5, context.getRecentEvents().get(0).step);
     }
 
+    private static void testEventListenerReceivesRecordedEvents()
+    {
+        Randomizer.reset();
+        SimulationContext context = new SimulationContext(3, 3);
+        EventAccumulator accumulator = new EventAccumulator();
+        context.addEventListener(accumulator);
+
+        Gazelle gazelle = new Gazelle(false, new Location(0, 0));
+        context.recordEvent(SimulationEvent.graze(7, gazelle,
+                                                  new Location(0, 0)));
+
+        TestSupport.assertEquals("listener sees recorded event", 1,
+                                 accumulator.getTotalEvents());
+        TestSupport.assertEquals("listener counts event type", 1,
+            accumulator.getCount(SimulationEvent.EventType.GRAZE));
+        TestSupport.assertEquals("listener counts event location", 1,
+                                 accumulator.getCountAt(new Location(0, 0)));
+    }
+
+    private static void testEventListenerSurvivesSimulatorReset()
+    {
+        Randomizer.reset();
+        Simulator simulator = new Simulator(SimulationConfig.baseline(), false);
+        simulator.setVerbose(false);
+        EventAccumulator accumulator = new EventAccumulator();
+        simulator.addEventListener(accumulator);
+        simulator.reset();
+
+        Gazelle gazelle = new Gazelle(false, new Location(0, 0));
+        simulator.getContext().recordEvent(SimulationEvent.graze(1, gazelle,
+                                                                 new Location(0, 0)));
+
+        TestSupport.assertEquals("simulator listener survives reset", 1,
+                                 accumulator.getTotalEvents());
+    }
+
+    private static void testEventAccumulatorOutlivesRecentEventWindow()
+    {
+        Randomizer.reset();
+        SimulationContext context = new SimulationContext(3, 3);
+        EventAccumulator accumulator = new EventAccumulator();
+        context.addEventListener(accumulator);
+        Gazelle gazelle = new Gazelle(false, new Location(0, 0));
+
+        for(int index = 0; index < 650; index++) {
+            context.recordEvent(SimulationEvent.graze(index, gazelle,
+                                                      new Location(index % 3, 0)));
+        }
+
+        TestSupport.assertEquals("recent events stay capped", 600,
+                                 context.getRecentEvents().size());
+        TestSupport.assertEquals("accumulator keeps whole run", 650,
+                                 accumulator.getTotalEvents());
+        TestSupport.assertEquals("accumulator keeps whole type count", 650,
+            accumulator.getCount(SimulationEvent.EventType.GRAZE));
+    }
+
+    private static void testEventAccumulatorCountsLocationsByType()
+    {
+        Randomizer.reset();
+        EventAccumulator accumulator = new EventAccumulator();
+        Gazelle gazelle = new Gazelle(false, new Location(1, 1));
+        Lion lion = new Lion(false, new Location(2, 2));
+
+        accumulator.onEvent(SimulationEvent.graze(1, gazelle,
+                                                  new Location(1, 1)));
+        accumulator.onEvent(SimulationEvent.graze(2, gazelle,
+                                                  new Location(1, 1)));
+        accumulator.onEvent(SimulationEvent.hunt(3, lion, gazelle));
+
+        TestSupport.assertEquals("all heat count includes every type at location",
+                                 3, accumulator.getCountAt(new Location(1, 1)));
+        TestSupport.assertEquals("typed heat count filters graze", 2,
+            accumulator.getCountAt(new Location(1, 1),
+                                   SimulationEvent.EventType.GRAZE));
+        TestSupport.assertEquals("typed heat count filters hunt", 1,
+            accumulator.getCountAt(new Location(1, 1),
+                                   SimulationEvent.EventType.HUNT));
+        TestSupport.assertEquals("typed heat max is available", 2,
+            accumulator.getMaxCount(SimulationEvent.EventType.GRAZE));
+    }
+
+    private static void testEventAccumulatorClearResetsCounts()
+    {
+        Randomizer.reset();
+        EventAccumulator accumulator = new EventAccumulator();
+        Gazelle gazelle = new Gazelle(false, new Location(0, 0));
+        accumulator.onEvent(SimulationEvent.graze(1, gazelle,
+                                                  new Location(0, 0)));
+        accumulator.clear();
+
+        TestSupport.assertEquals("clear resets total events", 0,
+                                 accumulator.getTotalEvents());
+        TestSupport.assertEquals("clear resets location count", 0,
+                                 accumulator.getCountAt(new Location(0, 0)));
+        TestSupport.assertEquals("clear resets max count", 0,
+            accumulator.getMaxCount(SimulationEvent.EventType.GRAZE));
+    }
+
+    private static void testSimulationSnapshotIsImmutable()
+    {
+        Randomizer.reset();
+        Field field = new Field(3, 3);
+        Gazelle gazelle = new Gazelle(false, new Location(1, 1));
+        field.placeAnimal(gazelle, gazelle.getLocation());
+        SimulationContext context = new SimulationContext(3, 3);
+        context.startStep(12, field);
+        SnapshotRecorder recorder = new SnapshotRecorder();
+        SimulationSnapshot snapshot = recorder.capture(12, field, context);
+        AnimalSnapshot animalSnapshot = snapshot.getAnimals().get(0);
+
+        TestSupport.setField(gazelle, "foodLevel", 1);
+        gazelle.setDead();
+
+        TestSupport.assertEquals("snapshot recorder stores one frame", 1,
+                                 recorder.size());
+        TestSupport.assertEquals("snapshot keeps animal row", 1,
+                                 animalSnapshot.row);
+        TestSupport.assertTrue("snapshot keeps original alive state",
+                               animalSnapshot.alive);
+        TestSupport.assertTrue("snapshot list is immutable",
+                               listRejectsMutation(snapshot.getAnimals()));
+    }
+
     private static void testDiseaseLifecycleEvents()
     {
         Randomizer.reset();
@@ -208,23 +344,23 @@ public class SimulationSystemTests
     private static void testMovementEventsAndScenes()
     {
         Randomizer.reset();
-        Field currentField = new Field(3, 3);
-        TestAnimal mover = createTestAnimal(Sex.FEMALE, new Location(1, 1));
+        Field currentField = new Field(10, 10);
+        TestAnimal mover = createTestAnimal(Sex.FEMALE, new Location(0, 9));
         currentField.placeAnimal(mover, mover.getLocation());
-        SimulationContext context = new SimulationContext(3, 3);
+        SimulationContext context = new SimulationContext(10, 10);
         context.startStep(8, currentField);
-        Field nextField = new Field(3, 3);
+        Field nextField = new Field(10, 10);
         mover.act(currentField, nextField, context);
         TestSupport.assertTrue("real movement records move event",
             hasEvent(context, SimulationEvent.EventType.MOVE));
 
         Randomizer.reset();
-        Field restingField = new Field(3, 3);
-        Lion restingLion = new Lion(false, new Location(1, 1));
+        Field restingField = new Field(10, 10);
+        Lion restingLion = new Lion(false, new Location(0, 9));
         restingField.placeAnimal(restingLion, restingLion.getLocation());
-        SimulationContext restingContext = new SimulationContext(3, 3);
+        SimulationContext restingContext = new SimulationContext(10, 10);
         restingContext.startStep(8, restingField);
-        restingLion.act(restingField, new Field(3, 3), restingContext);
+        restingLion.act(restingField, new Field(10, 10), restingContext);
         TestSupport.assertFalse("resting in place records no move event",
             hasEvent(restingContext, SimulationEvent.EventType.MOVE));
 
@@ -258,8 +394,8 @@ public class SimulationSystemTests
         }
         List<SceneDirector.SceneActor> actors = SceneDirector.buildAmbientActors(
             field, new java.awt.Rectangle(0, 0, 5, 5));
-        TestSupport.assertEquals("ambient inspect shows twenty live actors",
-                                 20, actors.size());
+        TestSupport.assertEquals("ambient inspect shows all visible actors",
+                                 25, actors.size());
         SceneDirector.Keyframe start = actors.get(0).at(0);
         SceneDirector.Keyframe middle = actors.get(0).at(1200);
         boolean moved = Math.abs(start.row - middle.row) > 0.01 ||
@@ -327,6 +463,161 @@ public class SimulationSystemTests
                                  23, context.getTerrainMap().getWidth());
     }
 
+    private static void testWaterSafetyAudit()
+    {
+        Simulator simulator = new Simulator(SimulationConfig.default3x(), false);
+        TestSupport.assertEquals("step 0 has no animals on water",
+            0, WaterSafetyProbe.countLivingAnimalsOnWater(simulator.getField(),
+                simulator.getContext().getTerrainMap()));
+        TestSupport.assertEquals("step 0 has no visual actors on water",
+            0, WaterSafetyProbe.countVisualActorSamplesOnWater(
+                simulator.getField(), simulator.getContext().getTerrainMap(),
+                simulator.getContext().getRecentEvents(), 200));
+        TestSupport.assertEquals("step 0 has no ordinary visual markers on water",
+            0, WaterSafetyProbe.countOrdinaryVisualSamplesOnWater(
+                simulator.getField(), simulator.getContext().getTerrainMap()));
+        for(int index = 1; index <= 1000 && simulator.getField().isViable(); index++) {
+            simulator.simulateOneStep();
+            if(index % 100 == 0) {
+                TestSupport.assertEquals("step " + index + " has no animals on water",
+                    0, WaterSafetyProbe.countLivingAnimalsOnWater(simulator.getField(),
+                        simulator.getContext().getTerrainMap()));
+                TestSupport.assertEquals("step " + index + " has no visual actors on water",
+                    0, WaterSafetyProbe.countVisualActorSamplesOnWater(
+                        simulator.getField(), simulator.getContext().getTerrainMap(),
+                        simulator.getContext().getRecentEvents(), 200));
+                TestSupport.assertEquals("step " + index + " has no ordinary visual markers on water",
+                    0, WaterSafetyProbe.countOrdinaryVisualSamplesOnWater(
+                        simulator.getField(), simulator.getContext().getTerrainMap()));
+            }
+        }
+    }
+
+    private static void testVisualWaterMaskCoversShorelineFootprint()
+    {
+        TerrainMap terrain = new TerrainMap(80, 120, 12345L);
+        VisualWaterMask mask = new VisualWaterMask(terrain, 1200, 800);
+        boolean catchesShoreline = false;
+        boolean allowsDryLand = false;
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                Location location = new Location(row, col);
+                if(!terrain.isPassable(location)) {
+                    continue;
+                }
+                Gazelle gazelle = new Gazelle(false, location);
+                boolean touches =
+                    mask.ordinaryAnimalFootprintTouchesWater(location, gazelle);
+                catchesShoreline = catchesShoreline || touches;
+                allowsDryLand = allowsDryLand || !touches;
+            }
+        }
+        TestSupport.assertTrue("visual mask catches passable shoreline footprints",
+                               catchesShoreline);
+        TestSupport.assertTrue("visual mask still allows dry-land markers",
+                               allowsDryLand);
+    }
+
+    private static void testVisualGridGeometryMatchesTerrainCells()
+    {
+        VisualGridGeometry geometry = new VisualGridGeometry(240, 360,
+                                                             1199, 803);
+        int previousRight = 0;
+        boolean horizontalContinuous = true;
+        for(int col = 0; col < 360; col++) {
+            java.awt.Rectangle cell = geometry.cellBounds(0, col);
+            horizontalContinuous = horizontalContinuous &&
+                                   previousRight == cell.x;
+            previousRight = cell.x + cell.width;
+        }
+        TestSupport.assertTrue("geometry horizontal cells are continuous",
+                               horizontalContinuous);
+        TestSupport.assertEquals("geometry covers full pixel width",
+                                 1199, previousRight);
+
+        int previousBottom = 0;
+        boolean verticalContinuous = true;
+        for(int row = 0; row < 240; row++) {
+            java.awt.Rectangle cell = geometry.cellBounds(row, 0);
+            verticalContinuous = verticalContinuous &&
+                                 previousBottom == cell.y;
+            previousBottom = cell.y + cell.height;
+        }
+        TestSupport.assertTrue("geometry vertical cells are continuous",
+                               verticalContinuous);
+        TestSupport.assertEquals("geometry covers full pixel height",
+                                 803, previousBottom);
+    }
+
+    private static void testOrdinaryFootprintUsesSharedGeometry()
+    {
+        TerrainMap terrain = new TerrainMap(80, 120, 12345L);
+        VisualGridGeometry geometry = new VisualGridGeometry(80, 120,
+                                                             1199, 803);
+        VisualWaterMask mask = new VisualWaterMask(terrain, 1199, 803);
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                Location location = new Location(row, col);
+                if(!terrain.isPassable(location)) {
+                    continue;
+                }
+                Gazelle gazelle = new Gazelle(false, location);
+                boolean direct = VisualFootprint.ordinaryTouchesWater(
+                    location, gazelle, geometry, terrain);
+                boolean viaMask = mask.ordinaryAnimalFootprintTouchesWater(
+                    location, gazelle);
+                TestSupport.assertEquals("ordinary mask delegates shared footprint",
+                                         direct, viaMask);
+                return;
+            }
+        }
+    }
+
+    private static void testInspectFootprintUsesSharedGeometry()
+    {
+        TerrainMap terrain = new TerrainMap(80, 120, 12345L);
+        VisualGridGeometry geometry = new VisualGridGeometry(80, 120,
+                                                             1199, 803);
+        boolean foundWater = false;
+        boolean foundLand = false;
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                boolean touches = VisualFootprint.inspectActorTouchesWater(
+                    row, col, 1.0, terrain, geometry);
+                if(terrain.isPassable(new Location(row, col))) {
+                    foundLand = foundLand || !touches;
+                }
+                else {
+                    foundWater = foundWater || touches;
+                }
+            }
+        }
+        TestSupport.assertTrue("inspect footprint detects visual water",
+                               foundWater);
+        TestSupport.assertTrue("inspect footprint allows safe land",
+                               foundLand);
+    }
+
+    private static void testAnimalStatusLogRows()
+    {
+        Randomizer.reset();
+        Field field = new Field(5, 5);
+        Gazelle gazelle = new Gazelle(false, new Location(2, 2));
+        field.placeAnimal(gazelle, gazelle.getLocation());
+        SimulationContext context = new SimulationContext(5, 5);
+        context.startStep(42, field);
+        context.recordEvent(SimulationEvent.graze(42, gazelle,
+                                                  gazelle.getLocation()));
+
+        String[][] rows = AnimalStatusLog.rowsFor(gazelle, context, field);
+        TestSupport.assertTrue("status log includes bilingual species",
+            rowValue(rows, "Species / 物种").contains("Gazelle / 瞪羚"));
+        TestSupport.assertTrue("status log includes bilingual stamina",
+            rowValue(rows, "Stamina / 体力").contains("%"));
+        TestSupport.assertTrue("status log includes translated recent event",
+            rowValue(rows, "Recent activity / 最近行为").contains("进食"));
+    }
+
     private static void testTerminalDiagnostics()
     {
         Field field = new Field(5, 5);
@@ -367,6 +658,9 @@ public class SimulationSystemTests
                                  360, config.getScaledWidth());
         TestSupport.assertEquals("map scale adjusts depth",
                                  240, config.getScaledDepth());
+        TestSupport.assertEquals("default random seed is exposed",
+                                 SimulationConfig.DEFAULT_RANDOM_SEED,
+                                 config.getRandomSeed());
         TestSupport.assertClose("creation multiplier scales profile",
             SpeciesRegistry.getProfile(SpeciesRegistry.GAZELLE).getCreationProbability() * 0.20,
             config.creationProbability(SpeciesRegistry.getProfile(SpeciesRegistry.GAZELLE)),
@@ -377,6 +671,9 @@ public class SimulationSystemTests
                                  360, simulator.getField().getWidth());
         TestSupport.assertEquals("configured simulator depth",
                                  240, simulator.getField().getDepth());
+        TestSupport.assertEquals("context uses configured terrain seed",
+                                 config.getTerrainSeed(),
+                                 simulator.getContext().getTerrainMap().getSeed());
 
         SimulationConfig target3x = SimulationConfig.target3xBalanced();
         TestSupport.assertEquals("target 3x config scales width",
@@ -434,6 +731,16 @@ public class SimulationSystemTests
         return false;
     }
 
+    private static String rowValue(String[][] rows, String metric)
+    {
+        for(String[] row : rows) {
+            if(row.length >= 2 && metric.equals(row[0])) {
+                return row[1];
+            }
+        }
+        return "";
+    }
+
     private static void testViewportInteractionControls()
     {
         ViewInteractionController.SizeProvider sizeProvider =
@@ -486,6 +793,17 @@ public class SimulationSystemTests
         TestSupport.assertTrue("hybrid mode updates viewport only",
                                hybrid.getTransform().getOffsetX() != beforePan ||
                                hybrid.getTransform().getZoom() > 1.0);
+    }
+
+    private static boolean listRejectsMutation(List<AnimalSnapshot> snapshots)
+    {
+        try {
+            snapshots.add(null);
+            return false;
+        }
+        catch(UnsupportedOperationException e) {
+            return true;
+        }
     }
 
     private static TestAnimal createTestAnimal(Sex sex, Location location)

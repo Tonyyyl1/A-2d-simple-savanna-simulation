@@ -14,8 +14,6 @@ import java.util.Random;
  */
 public class Field
 {
-    private static final Random rand = Randomizer.getRandom();
-
     private final int depth;
     private final int width;
     private final Map<Location, Animal> field;
@@ -59,7 +57,12 @@ public class Field
      */
     public List<Location> getFreeAdjacentLocations(Location location)
     {
-        return getFreeLocationsWithin(location, 1);
+        return getFreeAdjacentLocations(location, Randomizer.getRandom());
+    }
+
+    public List<Location> getFreeAdjacentLocations(Location location, Random rand)
+    {
+        return getFreeLocationsWithin(location, 1, rand);
     }
 
     /**
@@ -67,8 +70,14 @@ public class Field
      */
     public List<Location> getFreeLocationsWithin(Location location, int range)
     {
+        return getFreeLocationsWithin(location, range, Randomizer.getRandom());
+    }
+
+    public List<Location> getFreeLocationsWithin(Location location, int range,
+                                                 Random rand)
+    {
         List<Location> free = new LinkedList<>();
-        List<Location> nearby = getLocationsWithin(location, range);
+        List<Location> nearby = getLocationsWithin(location, range, rand);
         for(Location next : nearby) {
             Animal anAnimal = field.get(next);
             if(anAnimal == null || !anAnimal.isAlive()) {
@@ -83,13 +92,24 @@ public class Field
      */
     public List<Location> getAdjacentLocations(Location location)
     {
-        return getLocationsWithin(location, 1);
+        return getAdjacentLocations(location, Randomizer.getRandom());
+    }
+
+    public List<Location> getAdjacentLocations(Location location, Random rand)
+    {
+        return getLocationsWithin(location, 1, rand);
     }
 
     /**
      * Return a shuffled list of locations within the given range.
      */
     public List<Location> getLocationsWithin(Location location, int range)
+    {
+        return getLocationsWithin(location, range, Randomizer.getRandom());
+    }
+
+    public List<Location> getLocationsWithin(Location location, int range,
+                                             Random rand)
     {
         List<Location> locations = new ArrayList<>();
         if(location != null) {

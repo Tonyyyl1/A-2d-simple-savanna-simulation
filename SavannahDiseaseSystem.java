@@ -12,8 +12,18 @@ public class SavannahDiseaseSystem implements DiseaseSystem
     private static final double RECOVERY_BASE = 0.030;
     private static final double FATALITY_BASE = 0.004;
 
-    private final Random rand = Randomizer.getRandom();
+    private final Random rand;
     private int diseaseDeaths;
+
+    public SavannahDiseaseSystem()
+    {
+        this(Randomizer.getRandom());
+    }
+
+    public SavannahDiseaseSystem(Random rand)
+    {
+        this.rand = rand;
+    }
 
     public void progressDisease(SavannahAnimal animal, SimulationContext context, Field field)
     {
@@ -40,7 +50,9 @@ public class SavannahDiseaseSystem implements DiseaseSystem
                 }
             }
 
-            List<Location> adjacent = field.getAdjacentLocations(animal.getLocation());
+            List<Location> adjacent =
+                field.getAdjacentLocations(animal.getLocation(),
+                                           context.getRandom());
             for(Location location : adjacent) {
                 Animal other = field.getAnimalAt(location);
                 if(other instanceof SavannahAnimal) {

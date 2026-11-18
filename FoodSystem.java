@@ -7,7 +7,8 @@ public interface FoodSystem
 {
     void grow(SimulationContext context, Field field);
 
-    Location chooseGrazingLocation(SavannahAnimal herbivore, List<Location> locations);
+    Location chooseGrazingLocation(SavannahAnimal herbivore, List<Location> locations,
+                                   SimulationContext context);
 
     void feedHerbivoreAt(SavannahAnimal herbivore, Location location, SimulationContext context);
 

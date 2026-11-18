@@ -6,7 +6,6 @@ import java.util.Random;
  */
 public abstract class SavannahAnimal extends Animal
 {
-    private static final Random rand = Randomizer.getRandom();
     public static final double MAX_STAMINA = 100.0;
     public static final double STAMINA_MOVE_COST = 0.35;
     public static final double STAMINA_HUNT_COST = 1.20;
@@ -16,6 +15,7 @@ public abstract class SavannahAnimal extends Animal
     private static final int HOURS_PER_DAY = 24;
 
     private final SpeciesProfile profile;
+    private final Random rand;
     private final Sex sex;
     private int age;
     private int foodLevel;
@@ -27,8 +27,15 @@ public abstract class SavannahAnimal extends Animal
 
     public SavannahAnimal(SpeciesProfile profile, boolean randomAge, Location location)
     {
+        this(profile, randomAge, location, Randomizer.getRandom());
+    }
+
+    public SavannahAnimal(SpeciesProfile profile, boolean randomAge, Location location,
+                          Random rand)
+    {
         super(location);
         this.profile = profile;
+        this.rand = rand;
         sex = Sex.random(rand);
         if(randomAge) {
             age = rand.nextInt(profile.getMaxAge());
@@ -50,6 +57,11 @@ public abstract class SavannahAnimal extends Animal
 
     public abstract SavannahAnimal createChild(Location location);
 
+    protected Random getRandom()
+    {
+        return rand;
+    }
+
     public void act(Field currentField, Field nextFieldState, SimulationContext context)
     {
         if(!isAlive()) {
@@ -58,11 +70,20 @@ public abstract class SavannahAnimal extends Animal
 
         recoverStaminaAtStartOfDay(context);
         incrementAge();
+        if(!isAlive()) {
+            return;
+        }
         context.getDiseaseSystem().progressDisease(this, context, currentField);
+        if(!isAlive()) {
+            return;
+        }
         useEnergy(context);
 
         if(isAlive()) {
-            List<Location> freeLocations = nextFieldState.getFreeAdjacentLocations(getLocation());
+            List<Location> freeLocations = TerrainNavigator.freeAdjacent(
+                nextFieldState, context.getTerrainMap(), getLocation(),
+                context.getRandom());
+            sortByHabitatPreference(freeLocations, context);
             if(!freeLocations.isEmpty() && !isSurvivalCritical()) {
                 context.getBreedingSystem().tryBreed(this, currentField, nextFieldState,
                                                      context, freeLocations);
@@ -74,8 +95,10 @@ public abstract class SavannahAnimal extends Animal
                     nextLocation = context.getPredationSystem().hunt(this, currentField, context);
                 }
                 else {
-                    List<Location> grazingLocations = getGrazingLocations(nextFieldState, freeLocations);
-                    nextLocation = context.getFoodSystem().chooseGrazingLocation(this, grazingLocations);
+                    List<Location> grazingLocations =
+                        getGrazingLocations(nextFieldState, freeLocations, context);
+                    nextLocation = context.getFoodSystem()
+                        .chooseGrazingLocation(this, grazingLocations, context);
                     context.getFoodSystem().feedHerbivoreAt(this,
                         nextLocation == null ? getLocation() : nextLocation, context);
                 }
@@ -391,10 +414,16 @@ public abstract class SavannahAnimal extends Animal
         return true;
     }
 
-    private List<Location> getGrazingLocations(Field nextFieldState, List<Location> freeLocations)
+    private List<Location> getGrazingLocations(Field nextFieldState,
+                                               List<Location> freeLocations,
+                                               SimulationContext context)
     {
         if(isSurvivalCritical() || getSurvivalPressure() > 0.65) {
-            return nextFieldState.getFreeLocationsWithin(getLocation(), 2);
+            List<Location> urgentLocations = TerrainNavigator.freeReachableWithin(
+                nextFieldState, context.getTerrainMap(), getLocation(), 2,
+                context.getRandom());
+            sortByHabitatPreference(urgentLocations, context);
+            return urgentLocations;
         }
         return freeLocations;
     }
@@ -408,6 +437,10 @@ public abstract class SavannahAnimal extends Animal
         if(destination == null) {
             destination = getLocation();
         }
+        if(destination != null &&
+           !context.getTerrainMap().isPassable(destination)) {
+            destination = null;
+        }
         if(destination != null && nextFieldState.getAnimalAt(destination) == null) {
             recordMovementOrRest(oldLocation, destination, context);
             setLocation(destination);
@@ -420,8 +453,29 @@ public abstract class SavannahAnimal extends Animal
             nextFieldState.placeAnimal(this, destination);
         }
         else {
-            setDead();
+            destination = TerrainNavigator.nearestFreePassable(nextFieldState,
+                context.getTerrainMap(), oldLocation, 6);
+            if(destination != null) {
+                recordMovementOrRest(oldLocation, destination, context);
+                setLocation(destination);
+                nextFieldState.placeAnimal(this, destination);
+            }
+            else {
+                setDead();
+            }
         }
+    }
+
+    private void sortByHabitatPreference(List<Location> locations,
+                                         SimulationContext context)
+    {
+        locations.sort((first, second) -> {
+            double firstScore = HabitatPreferences.movementModifier(this,
+                context.getTerrainMap().getTerrainAt(first), context);
+            double secondScore = HabitatPreferences.movementModifier(this,
+                context.getTerrainMap().getTerrainAt(second), context);
+            return Double.compare(secondScore, firstScore);
+        });
     }
 
     private void recordMovementOrRest(Location oldLocation, Location destination,

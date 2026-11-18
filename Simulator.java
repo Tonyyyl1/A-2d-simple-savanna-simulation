@@ -15,6 +15,8 @@ public class Simulator
     private int step;
     private final SimulatorView view;
     private final SimulationRecorder recorder;
+    private final List<SimulationEventListener> eventListeners;
+    private final EventAccumulator eventAccumulator;
     private SimulationContext context;
     private boolean verbose;
     private int stepDelay;
@@ -29,7 +31,7 @@ public class Simulator
      */
     public Simulator()
     {
-        this(DEFAULT_DEPTH, DEFAULT_WIDTH, true);
+        this(SimulationConfig.default3x(), true);
     }
 
     /**
@@ -37,7 +39,7 @@ public class Simulator
      */
     public Simulator(boolean showView)
     {
-        this(DEFAULT_DEPTH, DEFAULT_WIDTH, showView);
+        this(SimulationConfig.default3x(), showView);
     }
 
     public Simulator(SimulationConfig config, boolean showView)
@@ -76,13 +78,15 @@ public class Simulator
         this.config = config == null ? SimulationConfig.baseline() : config;
         field = new Field(depth, width);
         context = new SimulationContext(depth, width, this.config);
-        view = showView ? new SimulatorView(depth, width) : null;
+        view = showView ? new SimulatorView(depth, width, this.config.describe()) : null;
+        eventListeners = new java.util.ArrayList<>();
+        eventAccumulator = new EventAccumulator();
         pauseLock = new Object();
         recorder = showView
             ? new WindowedSimulationRecorder("savanna-simulation-step-report.html")
             : new NullSimulationRecorder();
         verbose = showView;
-        stepDelay = showView ? 8 : 0;
+        stepDelay = showView ? 24 : 0;
         paused = false;
         stopRequested = false;
         exitWhenStopped = false;
@@ -109,7 +113,9 @@ public class Simulator
                     Simulator.this.requestStopAndExit();
                 }
             });
+            view.setEventAccumulator(eventAccumulator);
         }
+        addEventListener(eventAccumulator);
 
         reset();
     }
@@ -169,7 +175,7 @@ public class Simulator
 
         Field nextFieldState = new Field(field.getDepth(), field.getWidth());
         List<Animal> animals = field.getAnimals();
-        Collections.shuffle(animals, Randomizer.getRandom());
+        Collections.shuffle(animals, context.getRandom());
         for(Animal anAnimal : animals) {
             anAnimal.act(field, nextFieldState, context);
         }
@@ -194,9 +200,10 @@ public class Simulator
         stopRequested = false;
         exitWhenStopped = false;
         recorderFinished = false;
-        Randomizer.reset();
+        eventAccumulator.clear();
         Animal.resetIds();
         context = new SimulationContext(field.getDepth(), field.getWidth(), config);
+        attachEventListeners(context);
         populate();
         context.startStep(step, field);
         if(view != null) {
@@ -255,15 +262,22 @@ public class Simulator
      */
     private void populate()
     {
-        Random rand = Randomizer.getRandom();
+        Random rand = context.getRandom();
         field.clear();
         for(int row = 0; row < field.getDepth(); row++) {
             for(int col = 0; col < field.getWidth(); col++) {
+                Location location = new Location(row, col);
+                if(!context.getTerrainMap().isPassable(location)) {
+                    continue;
+                }
                 for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
-                    if(rand.nextDouble() <=
-                       config.creationProbability(factory.getProfile())) {
-                        Location location = new Location(row, col);
-                        field.placeAnimal(factory.create(true, location), location);
+                    double probability = config.creationProbability(factory.getProfile()) *
+                        HabitatPreferences.spawnModifier(factory.getProfile(),
+                            context.getTerrainMap().getTerrainAt(location));
+                    if(rand.nextDouble() <= probability) {
+                        field.placeAnimal(factory.create(true, location,
+                                                         context.getRandom()),
+                                          location);
                         break;
                     }
                 }
@@ -305,6 +319,20 @@ public class Simulator
     public SimulationContext getContext()
     {
         return context;
+    }
+
+    public void addEventListener(SimulationEventListener listener)
+    {
+        if(listener != null && !eventListeners.contains(listener)) {
+            eventListeners.add(listener);
+            context.addEventListener(listener);
+        }
+    }
+
+    public void removeEventListener(SimulationEventListener listener)
+    {
+        eventListeners.remove(listener);
+        context.removeEventListener(listener);
     }
 
     /**
@@ -353,7 +381,9 @@ public class Simulator
                 if(location == null) {
                     return;
                 }
-                field.placeAnimal(factory.create(true, location), location);
+                field.placeAnimal(factory.create(true, location,
+                                                 context.getRandom()),
+                                  location);
                 placed++;
             }
         }
@@ -361,23 +391,32 @@ public class Simulator
 
     private Location randomFreeLocation()
     {
-        Random rand = Randomizer.getRandom();
+        Random rand = context.getRandom();
         for(int tries = 0; tries < 500; tries++) {
             Location location = new Location(rand.nextInt(field.getDepth()),
                                              rand.nextInt(field.getWidth()));
-            if(field.getAnimalAt(location) == null) {
+            if(field.getAnimalAt(location) == null &&
+               context.getTerrainMap().isPassable(location)) {
                 return location;
             }
         }
         for(int row = 0; row < field.getDepth(); row++) {
             for(int col = 0; col < field.getWidth(); col++) {
                 Location location = new Location(row, col);
-                if(field.getAnimalAt(location) == null) {
+                if(field.getAnimalAt(location) == null &&
+                   context.getTerrainMap().isPassable(location)) {
                     return location;
                 }
             }
         }
         return null;
+    }
+
+    private void attachEventListeners(SimulationContext context)
+    {
+        for(SimulationEventListener listener : eventListeners) {
+            context.addEventListener(listener);
+        }
     }
 
     private void waitWhilePaused()

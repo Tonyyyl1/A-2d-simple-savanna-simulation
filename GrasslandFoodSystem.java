@@ -9,12 +9,18 @@ public class GrasslandFoodSystem implements FoodSystem
     private static final double MAX_GRASS = 1.0;
     private static final double BASE_GROWTH = 0.045;
 
-    private final Random rand = Randomizer.getRandom();
+    private final Random rand;
     private final double[][] grass;
     private double averageFoodLevel;
 
     public GrasslandFoodSystem(int depth, int width)
     {
+        this(depth, width, Randomizer.getRandom());
+    }
+
+    public GrasslandFoodSystem(int depth, int width, Random rand)
+    {
+        this.rand = rand;
         grass = new double[depth][width];
         for(int row = 0; row < depth; row++) {
             for(int col = 0; col < width; col++) {
@@ -38,21 +44,32 @@ public class GrasslandFoodSystem implements FoodSystem
         averageFoodLevel = total / (field.getDepth() * field.getWidth());
     }
 
-    public Location chooseGrazingLocation(SavannahAnimal herbivore, List<Location> locations)
+    public Location chooseGrazingLocation(SavannahAnimal herbivore,
+                                          List<Location> locations,
+                                          SimulationContext context)
     {
         if(locations.isEmpty()) {
             return herbivore.getLocation();
         }
         Location best = locations.get(0);
-        double bestFood = getFoodLevelAt(best);
+        double bestFood = grazingScore(herbivore, best, context);
         for(Location location : locations) {
-            double food = getFoodLevelAt(location);
+            double food = grazingScore(herbivore, location, context);
             if(food > bestFood) {
                 best = location;
                 bestFood = food;
             }
         }
         return best;
+    }
+
+    private double grazingScore(SavannahAnimal herbivore, Location location,
+                                SimulationContext context)
+    {
+        double food = getFoodLevelAt(location);
+        double habitat = HabitatPreferences.movementModifier(herbivore,
+            context.getTerrainMap().getTerrainAt(location), context);
+        return food * habitat;
     }
 
     public void feedHerbivoreAt(SavannahAnimal herbivore, Location location, SimulationContext context)

@@ -31,6 +31,7 @@ import java.util.Random;
 public class TerrainMap
 {
     public static final long DEFAULT_SEED = 20260629L;
+    private static final double VISUAL_WATER_BUFFER_CELLS = 0.55;
 
     /**
      * Terrain elevations, low to high. Higher terrain is painted later (on top)
@@ -87,6 +88,17 @@ public class TerrainMap
         int row = clamp(location.row(), 0, depth - 1);
         int col = clamp(location.col(), 0, width - 1);
         return terrain[row][col];
+    }
+
+    public boolean isPassable(Location location)
+    {
+        return location != null &&
+               getTerrainAt(location) != TerrainType.WATERHOLE;
+    }
+
+    public boolean isVisuallyWaterAt(double row, double col)
+    {
+        return distanceToNearestWaterCell(row, col) <= VISUAL_WATER_BUFFER_CELLS;
     }
 
     public int getDepth()
@@ -374,11 +386,57 @@ public class TerrainMap
                                      radiusX * 0.7, radiusY * 0.5));
         g2.setClip(oldClip);
 
-        // Bright shoreline rim drawn on the region outline.
+        // Bright shoreline rim drawn on the region outline. Keep this
+        // cell-relative so 3x maps do not get a multi-cell water-looking lip.
         g2.setColor(new Color(218, 203, 143, 170));
-        g2.setStroke(new BasicStroke(Math.max(1.5f, pixelWidth * 0.004f),
+        float cellPixels = (float)Math.max(1.0,
+            Math.min((double)pixelWidth / this.width,
+                     (double)pixelHeight / this.depth));
+        g2.setStroke(new BasicStroke(Math.max(1.5f, cellPixels * 0.42f),
                                      BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         g2.draw(region);
+    }
+
+    private double distanceToNearestWaterCell(double row, double col)
+    {
+        int minRow = clamp((int)Math.floor(row - VISUAL_WATER_BUFFER_CELLS),
+                           0, depth - 1);
+        int maxRow = clamp((int)Math.floor(row + VISUAL_WATER_BUFFER_CELLS),
+                           0, depth - 1);
+        int minCol = clamp((int)Math.floor(col - VISUAL_WATER_BUFFER_CELLS),
+                           0, width - 1);
+        int maxCol = clamp((int)Math.floor(col + VISUAL_WATER_BUFFER_CELLS),
+                           0, width - 1);
+        double best = Double.MAX_VALUE;
+        for(int nextRow = minRow; nextRow <= maxRow; nextRow++) {
+            for(int nextCol = minCol; nextCol <= maxCol; nextCol++) {
+                if(terrain[nextRow][nextCol] == TerrainType.WATERHOLE) {
+                    best = Math.min(best,
+                        distanceToCell(row, col, nextRow, nextCol));
+                }
+            }
+        }
+        return best;
+    }
+
+    private double distanceToCell(double row, double col, int cellRow,
+                                  int cellCol)
+    {
+        double rowDistance = axisDistance(row, cellRow, cellRow + 1.0);
+        double colDistance = axisDistance(col, cellCol, cellCol + 1.0);
+        return Math.sqrt(rowDistance * rowDistance +
+                         colDistance * colDistance);
+    }
+
+    private double axisDistance(double value, double min, double max)
+    {
+        if(value < min) {
+            return min - value;
+        }
+        if(value > max) {
+            return value - max;
+        }
+        return 0.0;
     }
 
     private void drawSoftVignette(Graphics2D g2, int width, int height)

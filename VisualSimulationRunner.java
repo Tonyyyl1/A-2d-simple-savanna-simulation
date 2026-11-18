@@ -8,14 +8,19 @@ public class VisualSimulationRunner
 
     public static void main(String[] args)
     {
-        int steps = DEFAULT_STEPS;
-        if(args.length > 0) {
-            steps = Integer.parseInt(args[0]);
+        StartupConfigDialog.StartupOptions options =
+            StartupConfigDialog.showDialogOrDefault();
+        if(options.isCancelled()) {
+            System.exit(0);
         }
-
-        Simulator simulator = new Simulator(true);
+        int steps = args.length > 0 ? Integer.parseInt(args[0]) :
+            options.getSteps();
+        Simulator simulator = new Simulator(options.getConfig(), true);
         simulator.setVerbose(false);
-        simulator.runVisualSimulation(steps);
+        simulator.setStepDelay(options.getStepDelay());
+        System.out.println("Starting visual simulation: " +
+                           options.getConfig().describe());
+        simulator.simulate(steps);
         System.out.println(simulator.getSummary());
     }
 }

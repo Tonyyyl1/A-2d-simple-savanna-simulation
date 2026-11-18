@@ -57,37 +57,42 @@ public class SpeciesRegistry
     static {
         FACTORIES.add(new SpeciesFactory() {
             public SpeciesProfile getProfile() { return LION_PROFILE; }
-            public SavannahAnimal create(boolean randomAge, Location location)
+            public SavannahAnimal create(boolean randomAge, Location location,
+                                         java.util.Random rand)
             {
-                return new Lion(randomAge, location);
+                return new Lion(randomAge, location, rand);
             }
         });
         FACTORIES.add(new SpeciesFactory() {
             public SpeciesProfile getProfile() { return CHEETAH_PROFILE; }
-            public SavannahAnimal create(boolean randomAge, Location location)
+            public SavannahAnimal create(boolean randomAge, Location location,
+                                         java.util.Random rand)
             {
-                return new Cheetah(randomAge, location);
+                return new Cheetah(randomAge, location, rand);
             }
         });
         FACTORIES.add(new SpeciesFactory() {
             public SpeciesProfile getProfile() { return ZEBRA_PROFILE; }
-            public SavannahAnimal create(boolean randomAge, Location location)
+            public SavannahAnimal create(boolean randomAge, Location location,
+                                         java.util.Random rand)
             {
-                return new Zebra(randomAge, location);
+                return new Zebra(randomAge, location, rand);
             }
         });
         FACTORIES.add(new SpeciesFactory() {
             public SpeciesProfile getProfile() { return BUFFALO_PROFILE; }
-            public SavannahAnimal create(boolean randomAge, Location location)
+            public SavannahAnimal create(boolean randomAge, Location location,
+                                         java.util.Random rand)
             {
-                return new Buffalo(randomAge, location);
+                return new Buffalo(randomAge, location, rand);
             }
         });
         FACTORIES.add(new SpeciesFactory() {
             public SpeciesProfile getProfile() { return GAZELLE_PROFILE; }
-            public SavannahAnimal create(boolean randomAge, Location location)
+            public SavannahAnimal create(boolean randomAge, Location location,
+                                         java.util.Random rand)
             {
-                return new Gazelle(randomAge, location);
+                return new Gazelle(randomAge, location, rand);
             }
         });
     }

@@ -13,6 +13,8 @@ import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
@@ -24,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.Icon;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -46,6 +50,8 @@ public class SimulatorView extends JFrame
     private final JLabel population;
     private final JButton pauseButton;
     private final JButton stopButton;
+    private final JCheckBox heatmapToggle;
+    private final JComboBox<String> heatmapTypeSelector;
     private final FieldView fieldView;
     private final Map<String, Color> colors;
     private final FieldStats stats;
@@ -67,6 +73,11 @@ public class SimulatorView extends JFrame
 
     public SimulatorView(int height, int width)
     {
+        this(height, width, "");
+    }
+
+    public SimulatorView(int height, int width, String configSummary)
+    {
         stats = new FieldStats();
         interactionController = new ViewInteractionController();
         iconSet = new AnimalIconSet();
@@ -78,12 +89,25 @@ public class SimulatorView extends JFrame
             setColor(factory.getProfile().getName(), factory.getProfile().getColor());
         }
 
-        setTitle("African Savanna Simulation");
+        setTitle("African Savanna Simulation" +
+                 (configSummary == null || configSummary.isEmpty()
+                    ? "" : " - " + configSummary));
         stepLabel = new JLabel(STEP_PREFIX, JLabel.CENTER);
         environment = new JLabel("", JLabel.CENTER);
         population = new JLabel(POPULATION_PREFIX, JLabel.CENTER);
         pauseButton = new JButton("Pause");
         stopButton = new JButton("Stop & Exit");
+        heatmapToggle = new JCheckBox("Heatmap / 热力图");
+        heatmapTypeSelector = new JComboBox<>(new String[] {
+            "All / 全部",
+            "Move / 移动",
+            "Hunt / 捕猎",
+            "Graze / 觅食",
+            "Birth / 出生",
+            "Infection / 感染",
+            "Recovery / 康复",
+            "Disease death / 病亡"
+        });
 
         setLocation(100, 50);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -103,8 +127,22 @@ public class SimulatorView extends JFrame
                 }
             });
         interactionController.register(fieldView, fieldView);
+        fieldView.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent event)
+            {
+                if(event.getButton() == MouseEvent.BUTTON1 && inspectMode) {
+                    SavannahAnimal animal =
+                        fieldView.findInspectAnimalAt(event.getX(), event.getY());
+                    if(animal != null) {
+                        showAnimalStatusLog(animal);
+                    }
+                }
+            }
+        });
 
         JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 1));
+        controlsPanel.add(heatmapToggle);
+        controlsPanel.add(heatmapTypeSelector);
         controlsPanel.add(pauseButton);
         controlsPanel.add(stopButton);
 
@@ -126,6 +164,9 @@ public class SimulatorView extends JFrame
         contents.add(bottomPanel, BorderLayout.SOUTH);
         pauseButton.addActionListener(event -> togglePaused());
         stopButton.addActionListener(event -> requestStopAndExit());
+        heatmapToggle.addActionListener(event -> updateHeatmapControls());
+        heatmapTypeSelector.addActionListener(event -> updateHeatmapControls());
+        updateHeatmapControls();
         pack();
         setVisible(true);
     }
@@ -136,6 +177,11 @@ public class SimulatorView extends JFrame
     public void setControlHandler(SimulationControlHandler controlHandler)
     {
         this.controlHandler = controlHandler;
+    }
+
+    public void setEventAccumulator(EventAccumulator accumulator)
+    {
+        fieldView.setEventAccumulator(accumulator);
     }
 
     /**
@@ -193,12 +239,18 @@ public class SimulatorView extends JFrame
 
         for(int row = 0; row < field.getDepth(); row++) {
             for(int col = 0; col < field.getWidth(); col++) {
-                Animal animal = field.getAnimalAt(new Location(row, col));
+                Location location = new Location(row, col);
+                Animal animal = field.getAnimalAt(location);
                 if(animal != null && animal.isAlive()) {
+                    if(terrainMap != null && !terrainMap.isPassable(location)) {
+                        continue;
+                    }
                     stats.incrementCount(animal);
                     if(animal instanceof SavannahAnimal) {
                         SavannahAnimal savannahAnimal = (SavannahAnimal)animal;
-                        if(fieldView.shouldDrawAnimal(col, row, savannahAnimal)) {
+                        if(fieldView.shouldDrawAnimal(col, row, savannahAnimal) &&
+                           fieldView.canDrawOrdinaryAnimal(location,
+                                                           savannahAnimal)) {
                             fieldView.drawAnimal(col, row, savannahAnimal);
                         }
                     }
@@ -253,6 +305,27 @@ public class SimulatorView extends JFrame
         }
     }
 
+    private void updateHeatmapControls()
+    {
+        fieldView.setHeatmapVisible(heatmapToggle.isSelected());
+        fieldView.setHeatmapEventType(selectedHeatmapType());
+        fieldView.repaint();
+    }
+
+    private SimulationEvent.EventType selectedHeatmapType()
+    {
+        switch(heatmapTypeSelector.getSelectedIndex()) {
+            case 1: return SimulationEvent.EventType.MOVE;
+            case 2: return SimulationEvent.EventType.HUNT;
+            case 3: return SimulationEvent.EventType.GRAZE;
+            case 4: return SimulationEvent.EventType.BIRTH;
+            case 5: return SimulationEvent.EventType.INFECTION;
+            case 6: return SimulationEvent.EventType.RECOVERY;
+            case 7: return SimulationEvent.EventType.DISEASE_DEATH;
+            default: return null;
+        }
+    }
+
     private void enterInspectMode()
     {
         inspectMode = true;
@@ -289,6 +362,7 @@ public class SimulatorView extends JFrame
                                              lastContext.getTerrainMap(),
                                              viewport);
         ambientActors = SceneDirector.buildBehaviorActors(lastEvents, lastField,
+                                                          lastContext.getTerrainMap(),
                                                           viewport);
         sceneIndex = 0;
         sceneStartNanos = System.nanoTime();
@@ -368,6 +442,25 @@ public class SimulatorView extends JFrame
         }
     }
 
+    private void showAnimalStatusLog(SavannahAnimal animal)
+    {
+        AnimalStatusLog.showDialog(this, animal, lastContext, lastField);
+    }
+
+    private SavannahAnimal findAnimalById(long animalId)
+    {
+        if(lastField == null || animalId < 0) {
+            return null;
+        }
+        for(Animal animal : lastField.getAnimals()) {
+            if(animal instanceof SavannahAnimal && animal.isAlive() &&
+               animal.getId() == animalId) {
+                return (SavannahAnimal)animal;
+            }
+        }
+        return null;
+    }
+
     private JPanel createLegendPanel()
     {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
@@ -397,13 +490,16 @@ public class SimulatorView extends JFrame
 
         private final int gridWidth;
         private final int gridHeight;
-        private int xScale;
-        private int yScale;
         private Dimension size;
         private TerrainMap terrainMap;
+        private VisualGridGeometry geometry;
+        private VisualWaterMask visualWaterMask;
         private BufferedImage terrainImage;
         private BufferedImage animalImage;
         private Graphics2D animalGraphics;
+        private EventAccumulator eventAccumulator;
+        private boolean heatmapVisible;
+        private SimulationEvent.EventType heatmapEventType;
         private int aggregateColumns;
         private int aggregateRows;
         private int[][] aggregatePopulation;
@@ -413,6 +509,8 @@ public class SimulatorView extends JFrame
             gridHeight = height;
             gridWidth = width;
             size = new Dimension(0, 0);
+            heatmapVisible = false;
+            heatmapEventType = null;
         }
 
         public Dimension getPreferredSize()
@@ -441,6 +539,21 @@ public class SimulatorView extends JFrame
             return Math.max(1, size.height);
         }
 
+        public void setEventAccumulator(EventAccumulator accumulator)
+        {
+            eventAccumulator = accumulator;
+        }
+
+        public void setHeatmapVisible(boolean visible)
+        {
+            heatmapVisible = visible;
+        }
+
+        public void setHeatmapEventType(SimulationEvent.EventType type)
+        {
+            heatmapEventType = type;
+        }
+
         public void preparePaint(TerrainMap currentTerrainMap)
         {
             Dimension currentSize = getSize();
@@ -453,8 +566,8 @@ public class SimulatorView extends JFrame
 
             if(sizeChanged) {
                 size = new Dimension(currentSize);
-                xScale = Math.max(1, size.width / gridWidth);
-                yScale = Math.max(1, size.height / gridHeight);
+                geometry = new VisualGridGeometry(gridHeight, gridWidth,
+                                                  size.width, size.height);
                 animalImage = new BufferedImage(size.width, size.height,
                                                 BufferedImage.TYPE_INT_ARGB);
                 if(animalGraphics != null) {
@@ -467,6 +580,12 @@ public class SimulatorView extends JFrame
 
             if(sizeChanged || terrainChanged || terrainImage == null) {
                 terrainMap = currentTerrainMap;
+                if(geometry == null) {
+                    geometry = new VisualGridGeometry(gridHeight, gridWidth,
+                                                      size.width, size.height);
+                }
+                visualWaterMask = terrainMap == null ? null :
+                    new VisualWaterMask(terrainMap, size.width, size.height);
                 terrainImage = new BufferedImage(size.width, size.height,
                                                  BufferedImage.TYPE_INT_ARGB);
                 Graphics2D terrainGraphics = terrainImage.createGraphics();
@@ -515,23 +634,39 @@ public class SimulatorView extends JFrame
             return Math.abs(x * 31 + y * 17) % spacing == 0;
         }
 
+        public boolean canDrawOrdinaryAnimal(Location location,
+                                             SavannahAnimal animal)
+        {
+            return visualWaterMask == null ||
+                   !visualWaterMask.ordinaryAnimalFootprintTouchesWater(location,
+                                                                        animal);
+        }
+
+        public boolean canDrawOrdinaryAnimal(Location location)
+        {
+            return canDrawOrdinaryAnimal(location, null);
+        }
+
         public void drawMark(int x, int y, Color color)
         {
+            Rectangle cell = geometry.cellBounds(y, x);
             animalGraphics.setColor(color);
-            animalGraphics.fillRect(x * xScale, y * yScale,
-                                    Math.max(1, xScale - 1),
-                                    Math.max(1, yScale - 1));
+            animalGraphics.fillRect(cell.x, cell.y,
+                                    Math.max(1, cell.width - 1),
+                                    Math.max(1, cell.height - 1));
         }
 
         public void drawAnimal(int x, int y, SavannahAnimal animal)
         {
-            int left = x * xScale;
-            int top = y * yScale;
-            int cellWidth = Math.max(1, xScale - 1);
-            int cellHeight = Math.max(1, yScale - 1);
-            int symbolSize = Math.max(3, Math.min(cellWidth, cellHeight) - 2);
-            int symbolLeft = left + Math.max(0, (cellWidth - symbolSize) / 2);
-            int symbolTop = top + Math.max(0, (cellHeight - symbolSize) / 2);
+            VisualFootprint.OrdinaryMarker marker =
+                VisualFootprint.ordinaryMarker(new Location(y, x), geometry);
+            int left = marker.left;
+            int top = marker.top;
+            int cellWidth = marker.cellWidth;
+            int cellHeight = marker.cellHeight;
+            int symbolSize = marker.symbolSize;
+            int symbolLeft = marker.symbolLeft;
+            int symbolTop = marker.symbolTop;
             Color color = getColor(animal.getProfile().getName());
 
             animalGraphics.setColor(new Color(20, 18, 12, 60));
@@ -718,6 +853,7 @@ public class SimulatorView extends JFrame
                 int drawHeight = size.equals(currentSize) ? size.height :
                     currentSize.height;
                 g2.drawImage(terrainImage, 0, 0, drawWidth, drawHeight, null);
+                drawHeatmapOverlay(g2);
                 if(!inspectMode) {
                     g2.drawImage(animalImage, 0, 0, drawWidth, drawHeight, null);
                 }
@@ -732,20 +868,79 @@ public class SimulatorView extends JFrame
             }
         }
 
+        private void drawHeatmapOverlay(Graphics2D g2)
+        {
+            if(!heatmapVisible || eventAccumulator == null ||
+               terrainMap == null || geometry == null) {
+                return;
+            }
+            int max = eventAccumulator.getMaxCount(heatmapEventType);
+            if(max <= 0) {
+                return;
+            }
+            Rectangle visible = visibleCells();
+            Composite oldComposite = g2.getComposite();
+            for(int row = visible.y; row < visible.y + visible.height; row++) {
+                for(int col = visible.x; col < visible.x + visible.width; col++) {
+                    Location location = new Location(row, col);
+                    if(!terrainMap.isPassable(location)) {
+                        continue;
+                    }
+                    int count = eventAccumulator.getCountAt(location,
+                                                            heatmapEventType);
+                    if(count <= 0) {
+                        continue;
+                    }
+                    double ratio = Math.min(1.0, (double)count / max);
+                    Rectangle cell = geometry.cellBounds(row, col);
+                    Color color = heatmapColor(ratio);
+                    g2.setComposite(AlphaComposite.SrcOver.derive(
+                        (float)(0.18 + ratio * 0.48)));
+                    g2.setColor(color);
+                    g2.fillRect(cell.x, cell.y, cell.width, cell.height);
+                }
+            }
+            g2.setComposite(oldComposite);
+        }
+
+        private Color heatmapColor(double ratio)
+        {
+            if(ratio < 0.45) {
+                double local = ratio / 0.45;
+                return blend(new Color(255, 231, 94),
+                             new Color(246, 145, 45), local);
+            }
+            double local = (ratio - 0.45) / 0.55;
+            return blend(new Color(246, 145, 45),
+                         new Color(203, 35, 42), local);
+        }
+
+        private Color blend(Color first, Color second, double ratio)
+        {
+            double clamped = Math.max(0.0, Math.min(1.0, ratio));
+            int red = (int)Math.round(first.getRed() +
+                (second.getRed() - first.getRed()) * clamped);
+            int green = (int)Math.round(first.getGreen() +
+                (second.getGreen() - first.getGreen()) * clamped);
+            int blue = (int)Math.round(first.getBlue() +
+                (second.getBlue() - first.getBlue()) * clamped);
+            return new Color(red, green, blue);
+        }
+
         Rectangle visibleCells()
         {
             ViewportTransform transform = interactionController.getTransform();
             double zoom = Math.max(0.0001, transform.getZoom());
-            double cellWidth = Math.max(1, xScale);
-            double cellHeight = Math.max(1, yScale);
             int viewW = getWidth() > 0 ? getWidth() : size.width;
             int viewH = getHeight() > 0 ? getHeight() : size.height;
-            int colMin = (int)Math.floor(-transform.getOffsetX() / (zoom * cellWidth));
-            int colMax = (int)Math.ceil((viewW - transform.getOffsetX()) /
-                                        (zoom * cellWidth));
-            int rowMin = (int)Math.floor(-transform.getOffsetY() / (zoom * cellHeight));
-            int rowMax = (int)Math.ceil((viewH - transform.getOffsetY()) /
-                                        (zoom * cellHeight));
+            double worldLeft = -transform.getOffsetX() / zoom;
+            double worldRight = (viewW - transform.getOffsetX()) / zoom;
+            double worldTop = -transform.getOffsetY() / zoom;
+            double worldBottom = (viewH - transform.getOffsetY()) / zoom;
+            int colMin = (int)Math.floor(geometry.gridColForPixel(worldLeft));
+            int colMax = (int)Math.ceil(geometry.gridColForPixel(worldRight));
+            int rowMin = (int)Math.floor(geometry.gridRowForPixel(worldTop));
+            int rowMax = (int)Math.ceil(geometry.gridRowForPixel(worldBottom));
             colMin = Math.max(0, Math.min(gridWidth - 1, colMin));
             colMax = Math.max(0, Math.min(gridWidth - 1, colMax));
             rowMin = Math.max(0, Math.min(gridHeight - 1, rowMin));
@@ -753,6 +948,116 @@ public class SimulatorView extends JFrame
             return new Rectangle(colMin, rowMin,
                 Math.max(1, colMax - colMin + 1),
                 Math.max(1, rowMax - rowMin + 1));
+        }
+
+        SavannahAnimal findInspectAnimalAt(int mouseX, int mouseY)
+        {
+            if(!inspectMode) {
+                return null;
+            }
+            SceneDirector.Scene activeScene =
+                (!storyboard.isEmpty() && sceneIndex < storyboard.size())
+                    ? storyboard.get(sceneIndex) : null;
+            double elapsedMs = activeScene == null ? 0.0 :
+                (System.nanoTime() - sceneStartNanos) / 1_000_000.0;
+            double ambientElapsedMs =
+                ((System.nanoTime() - ambientStartNanos) / 1_000_000.0) %
+                SceneDirector.AMBIENT_DURATION_MS;
+
+            long activeHit = activeScene == null ? -1L :
+                findHitActorId(activeScene.actors, elapsedMs, mouseX, mouseY);
+            if(activeHit >= 0) {
+                return SimulatorView.this.findAnimalById(activeHit);
+            }
+
+            Set<Long> activeActorIds = activeActorIds(activeScene);
+            List<SceneDirector.SceneActor> candidates = new ArrayList<>();
+            for(SceneDirector.SceneActor actor : ambientActors) {
+                if(!activeActorIds.contains(actor.animalId)) {
+                    candidates.add(actor);
+                }
+            }
+            long ambientHit =
+                findHitActorId(candidates, ambientElapsedMs, mouseX, mouseY);
+            if(ambientHit >= 0) {
+                return SimulatorView.this.findAnimalById(ambientHit);
+            }
+            return findAnimalAtScreenCell(mouseX, mouseY);
+        }
+
+        private long findHitActorId(List<SceneDirector.SceneActor> actors,
+                                    double elapsedMs, int mouseX, int mouseY)
+        {
+            long bestId = -1L;
+            double bestDistance = Double.MAX_VALUE;
+            for(SceneDirector.SceneActor actor : actors) {
+                double distance = actorHitDistance(actor, elapsedMs,
+                                                   mouseX, mouseY);
+                if(distance < bestDistance) {
+                    bestDistance = distance;
+                    bestId = actor.animalId;
+                }
+            }
+            return bestId;
+        }
+
+        private double actorHitDistance(SceneDirector.SceneActor actor,
+                                        double elapsedMs, int mouseX, int mouseY)
+        {
+            SceneDirector.Keyframe frame = actor.at(elapsedMs);
+            if(frame.alpha <= 0.01) {
+                return Double.MAX_VALUE;
+            }
+
+            double row = frame.row + 0.5;
+            double col = frame.col + 0.5;
+            if(actor.tremble) {
+                double phase = System.nanoTime() / 1.0e8;
+                row += Math.sin(phase) * 0.05;
+                col += Math.cos(phase * 1.3) * 0.05;
+            }
+            double[] adjusted = avoidWaterFootprint(row, col);
+            row = adjusted[0];
+            col = adjusted[1];
+
+            ViewportTransform transform = interactionController.getTransform();
+            int sx = screenX(col);
+            int sy = screenY(row);
+            int iconPixels = (int)Math.round(
+                VisualFootprint.inspectIconPixels(frame.scale, geometry) *
+                transform.getZoom());
+            int padding = Math.max(4, iconPixels / 5);
+            int half = iconPixels / 2 + padding;
+            if(mouseX < sx - half || mouseX > sx + half ||
+               mouseY < sy - half || mouseY > sy + half) {
+                return Double.MAX_VALUE;
+            }
+            return Math.hypot(mouseX - sx, mouseY - sy);
+        }
+
+        private SavannahAnimal findAnimalAtScreenCell(int mouseX, int mouseY)
+        {
+            if(lastField == null) {
+                return null;
+            }
+            ViewportTransform transform = interactionController.getTransform();
+            double zoom = Math.max(0.0001, transform.getZoom());
+            double worldX = (mouseX - transform.getOffsetX()) / zoom;
+            double worldY = (mouseY - transform.getOffsetY()) / zoom;
+            if(worldX < 0 || worldX >= geometry.pixelWidth() ||
+               worldY < 0 || worldY >= geometry.pixelHeight()) {
+                return null;
+            }
+            int col = geometry.cellColAtPixel(worldX);
+            int row = geometry.cellRowAtPixel(worldY);
+            if(row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) {
+                return null;
+            }
+            Animal animal = lastField.getAnimalAt(new Location(row, col));
+            if(animal instanceof SavannahAnimal && animal.isAlive()) {
+                return (SavannahAnimal)animal;
+            }
+            return null;
         }
 
         private void drawInspectLayer(Graphics2D g2)
@@ -811,10 +1116,13 @@ public class SimulatorView extends JFrame
         {
             double t = Math.max(0.0, Math.min(1.0,
                 (elapsedMs - vfx.startMs) / Math.max(1.0, vfx.endMs - vfx.startMs)));
-            int sx = screenX(vfx.cellCol);
-            int sy = screenY(vfx.cellRow);
-            int w = (int)Math.ceil(xScale * interactionController.getTransform().getZoom());
-            int h = (int)Math.ceil(yScale * interactionController.getTransform().getZoom());
+            Rectangle cell = geometry.cellBounds(vfx.cellRow, vfx.cellCol);
+            int sx = screenX(geometry.gridColForPixel(cell.x));
+            int sy = screenY(geometry.gridRowForPixel(cell.y));
+            int w = (int)Math.ceil(cell.width *
+                interactionController.getTransform().getZoom());
+            int h = (int)Math.ceil(cell.height *
+                interactionController.getTransform().getZoom());
             g2.setColor(new Color(30, 26, 12, (int)(90 * t)));
             g2.fillRect(sx, sy, w, h);
         }
@@ -829,10 +1137,8 @@ public class SimulatorView extends JFrame
                    !viewport.contains(event.col, event.row)) {
                     continue;
                 }
-                int sx = screenX(event.col) +
-                    (int)Math.round(xScale * interactionController.getTransform().getZoom() / 2.0);
-                int sy = screenY(event.row) +
-                    (int)Math.round(yScale * interactionController.getTransform().getZoom() / 2.0);
+                int sx = screenX(event.col + 0.5);
+                int sy = screenY(event.row + 0.5);
                 switch(event.type) {
                     case HUNT:
                         g2.setColor(new Color(220, 60, 40, 200));
@@ -866,21 +1172,23 @@ public class SimulatorView extends JFrame
                 return;
             }
 
-            double row = frame.row;
-            double col = frame.col;
+            double row = frame.row + 0.5;
+            double col = frame.col + 0.5;
             if(actor.tremble) {
                 double phase = System.nanoTime() / 1.0e8;
                 row += Math.sin(phase) * 0.05;
                 col += Math.cos(phase * 1.3) * 0.05;
             }
+            double[] adjusted = avoidWaterFootprint(row, col);
+            row = adjusted[0];
+            col = adjusted[1];
 
             ViewportTransform transform = interactionController.getTransform();
-            int sx = (int)Math.round(col * xScale * transform.getZoom() +
-                                     transform.getOffsetX());
-            int sy = (int)Math.round(row * yScale * transform.getZoom() +
-                                     transform.getOffsetY());
-            int iconPixels = (int)Math.max(8, Math.min(xScale, yScale) *
-                transform.getZoom() * 1.6 * frame.scale);
+            int sx = screenX(col);
+            int sy = screenY(row);
+            int iconPixels = (int)Math.round(
+                VisualFootprint.inspectIconPixels(frame.scale, geometry) *
+                transform.getZoom());
             int drawX = sx - iconPixels / 2;
             int drawY = sy - iconPixels / 2;
 
@@ -913,6 +1221,87 @@ public class SimulatorView extends JFrame
             g2.setComposite(oldComposite);
         }
 
+        private double[] avoidWaterFootprint(double row, double col)
+        {
+            if(terrainMap == null) {
+                return new double[] { row, col };
+            }
+            int cellRow = clampCell((int)Math.floor(row), gridHeight);
+            int cellCol = clampCell((int)Math.floor(col), gridWidth);
+            Location center = new Location(cellRow, cellCol);
+            if(!terrainMap.isPassable(center) || footprintTouchesWater(row, col)) {
+                Location nearest = nearestSafeVisualCell(cellRow, cellCol, 8);
+                if(nearest != null) {
+                    return new double[] { nearest.row() + 0.5,
+                                          nearest.col() + 0.5 };
+                }
+            }
+            if(!footprintTouchesWater(row, col)) {
+                return new double[] { row, col };
+            }
+
+            double rowPush = 0.0;
+            double colPush = 0.0;
+            for(int dr = -1; dr <= 1; dr++) {
+                for(int dc = -1; dc <= 1; dc++) {
+                    if(dr == 0 && dc == 0) {
+                        continue;
+                    }
+                    int sampleRow = clampCell(cellRow + dr, gridHeight);
+                    int sampleCol = clampCell(cellCol + dc, gridWidth);
+                    if(!terrainMap.isPassable(new Location(sampleRow, sampleCol))) {
+                        rowPush -= dr;
+                        colPush -= dc;
+                    }
+                }
+            }
+            double length = Math.sqrt(rowPush * rowPush + colPush * colPush);
+            if(length <= 0.0) {
+                return new double[] { row, col };
+            }
+            double adjustedRow = row + rowPush / length * 0.22;
+            double adjustedCol = col + colPush / length * 0.22;
+            if(footprintTouchesWater(adjustedRow, adjustedCol)) {
+                adjustedRow = cellRow + 0.5;
+                adjustedCol = cellCol + 0.5;
+            }
+            return new double[] { adjustedRow, adjustedCol };
+        }
+
+        private boolean footprintTouchesWater(double row, double col)
+        {
+            return VisualFootprint.inspectCenterTouchesWater(row, col, 1.0,
+                                                             terrainMap,
+                                                             geometry);
+        }
+
+        private Location nearestSafeVisualCell(int row, int col, int maxRange)
+        {
+            for(int range = 1; range <= maxRange; range++) {
+                for(int dr = -range; dr <= range; dr++) {
+                    for(int dc = -range; dc <= range; dc++) {
+                        if(Math.max(Math.abs(dr), Math.abs(dc)) != range) {
+                            continue;
+                        }
+                        int nextRow = clampCell(row + dr, gridHeight);
+                        int nextCol = clampCell(col + dc, gridWidth);
+                        Location location = new Location(nextRow, nextCol);
+                        if(terrainMap.isPassable(location) &&
+                           !footprintTouchesWater(nextRow + 0.5,
+                                                  nextCol + 0.5)) {
+                            return location;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        private int clampCell(int value, int max)
+        {
+            return Math.max(0, Math.min(max - 1, value));
+        }
+
         private void drawInfectionArc(Graphics2D g2, SceneDirector.Vfx vfx,
                                       double elapsedMs)
         {
@@ -941,14 +1330,16 @@ public class SimulatorView extends JFrame
         private int screenX(double col)
         {
             ViewportTransform transform = interactionController.getTransform();
-            return (int)Math.round(col * xScale * transform.getZoom() +
+            return (int)Math.round(geometry.pixelXForGridCol(col) *
+                                   transform.getZoom() +
                                    transform.getOffsetX());
         }
 
         private int screenY(double row)
         {
             ViewportTransform transform = interactionController.getTransform();
-            return (int)Math.round(row * yScale * transform.getZoom() +
+            return (int)Math.round(geometry.pixelYForGridRow(row) *
+                                   transform.getZoom() +
                                    transform.getOffsetY());
         }
 

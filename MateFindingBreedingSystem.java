@@ -6,7 +6,17 @@ import java.util.Random;
  */
 public class MateFindingBreedingSystem implements BreedingSystem
 {
-    private final Random rand = Randomizer.getRandom();
+    private final Random rand;
+
+    public MateFindingBreedingSystem()
+    {
+        this(Randomizer.getRandom());
+    }
+
+    public MateFindingBreedingSystem(Random rand)
+    {
+        this.rand = rand;
+    }
 
     public void tryBreed(SavannahAnimal parent, Field currentField, Field nextFieldState,
                          SimulationContext context, List<Location> freeLocations)
@@ -66,7 +76,8 @@ public class MateFindingBreedingSystem implements BreedingSystem
             range *= 2;
         }
         List<Location> locations =
-            currentField.getLocationsWithin(parent.getLocation(), range);
+            currentField.getLocationsWithin(parent.getLocation(), range,
+                                            context.getRandom());
         for(Location location : locations) {
             Animal animal = currentField.getAnimalAt(location);
             if(animal instanceof SavannahAnimal) {

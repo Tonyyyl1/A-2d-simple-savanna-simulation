@@ -1,6 +1,6 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.3**
+Version: **1.1**
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -10,11 +10,7 @@ test suite.
 
 ## Version Highlights
 
-- **1.3**: adds the current visual/inspect animation build, including
-  event-driven `SceneDirector` storyboard playback, improved viewport
-  interaction, terrain feedback, and the latest simulation/test sources from
-  the current workspace package.
-- **1.2 / Phase 1**: added an independent 2.5D savanna terrain
+- **Unreleased / Phase 1**: added an independent 2.5D savanna terrain
   background layer and clearer simulation feedback. The map has a deterministic
   waterhole, grassland belt, bush bands, open plain, dry soil, and a seasonal
   lowland corridor. The GUI now separates terrain, animal symbols, weather/time
@@ -297,9 +293,18 @@ implementation classes:
 - `PredationSystem` / `FoodChainPredationSystem`
 - `BreedingSystem` / `MateFindingBreedingSystem`
 - `SimulationRecorder` / `StepReportRecorder`
+- `SimulationEventListener` / `EventAccumulator`
 
 Species parameters are centralised in `SpeciesRegistry` and `SpeciesProfile`.
 Shared animal behaviour is implemented in `SavannahAnimal`.
+
+`SimulationContext.getRecentEvents()` is intentionally capped at the latest
+600 events for inspect-mode UI. Whole-run heat maps, replay indexes and long
+event summaries should use `SimulationEventListener` with `EventAccumulator`,
+or immutable `SimulationSnapshot` frames captured by `SnapshotRecorder`.
+The visual window includes a `Heatmap / 热力图` toggle and event-type selector;
+the overlay is drawn from accumulated whole-run events, not the 600-event
+recent window.
 
 ## Important Files
 
@@ -310,6 +315,9 @@ Shared animal behaviour is implemented in `SavannahAnimal`.
 - `SimulatorView.java`: visual grid window.
 - `SimulationChartWindow.java`: live chart display.
 - `StepReportRecorder.java`: interval recording and HTML report generation.
+- `EventAccumulator.java`: whole-run event counts for heat maps and summaries.
+- `SimulationSnapshot.java`: immutable world snapshot for future replay/timeline tools.
+- `SnapshotRecorder.java`: collects immutable snapshots.
 - `SpeciesRegistry.java`: species configuration.
 - `SavannahAnimal.java`: shared animal behaviour.
 - `CHANGELOG.md`: version history.

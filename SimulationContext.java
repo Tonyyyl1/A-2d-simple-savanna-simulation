@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * Shared systems and step-level state.
@@ -10,6 +11,7 @@ public class SimulationContext
 {
     private static final int MAX_RECENT_EVENTS = 600;
 
+    private final Random random;
     private final SimulationClock clock;
     private final WeatherSystem weatherSystem;
     private final DiseaseSystem diseaseSystem;
@@ -23,6 +25,8 @@ public class SimulationContext
     private List<SimulationEvent> currentEvents = new ArrayList<>();
     private List<SimulationEvent> previousEvents = new ArrayList<>();
     private final List<SimulationEvent> recentEvents = new ArrayList<>();
+    private final List<SimulationEventListener> eventListeners =
+        new ArrayList<>();
 
     public SimulationContext(int depth, int width)
     {
@@ -31,14 +35,15 @@ public class SimulationContext
 
     public SimulationContext(int depth, int width, SimulationConfig config)
     {
-        clock = new SimulationClock();
-        weatherSystem = new SeasonalWeatherSystem();
         this.config = config == null ? SimulationConfig.baseline() : config;
-        diseaseSystem = new SavannahDiseaseSystem();
-        predationSystem = new FoodChainPredationSystem();
-        breedingSystem = new MateFindingBreedingSystem();
-        foodSystem = new GrasslandFoodSystem(depth, width);
-        terrainMap = new TerrainMap(depth, width);
+        random = new Random(this.config.getRandomSeed());
+        clock = new SimulationClock();
+        weatherSystem = new SeasonalWeatherSystem(random);
+        diseaseSystem = new SavannahDiseaseSystem(random);
+        predationSystem = new FoodChainPredationSystem(random);
+        breedingSystem = new MateFindingBreedingSystem(random);
+        foodSystem = new GrasslandFoodSystem(depth, width, random);
+        terrainMap = new TerrainMap(depth, width, this.config.getTerrainSeed());
     }
 
     public void startStep(int step, Field field)
@@ -62,6 +67,21 @@ public class SimulationContext
         while(recentEvents.size() > MAX_RECENT_EVENTS) {
             recentEvents.remove(0);
         }
+        for(SimulationEventListener listener : eventListeners) {
+            listener.onEvent(event);
+        }
+    }
+
+    public void addEventListener(SimulationEventListener listener)
+    {
+        if(listener != null && !eventListeners.contains(listener)) {
+            eventListeners.add(listener);
+        }
+    }
+
+    public void removeEventListener(SimulationEventListener listener)
+    {
+        eventListeners.remove(listener);
     }
 
     public List<SimulationEvent> getCurrentEvents()
@@ -82,6 +102,11 @@ public class SimulationContext
     public int getStep()
     {
         return step;
+    }
+
+    public Random getRandom()
+    {
+        return random;
     }
 
     public SimulationClock getClock()

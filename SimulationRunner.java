@@ -9,13 +9,29 @@ public class SimulationRunner
     public static void main(String[] args)
     {
         int steps = 200000;
+        SimulationConfig config = SimulationConfig.default3x();
         if(args.length > 0) {
-            steps = Integer.parseInt(args[0]);
+            if("baseline".equalsIgnoreCase(args[0])) {
+                config = SimulationConfig.baseline();
+                if(args.length > 1) {
+                    steps = Integer.parseInt(args[1]);
+                }
+            }
+            else if("3x".equalsIgnoreCase(args[0])) {
+                config = SimulationConfig.default3x();
+                if(args.length > 1) {
+                    steps = Integer.parseInt(args[1]);
+                }
+            }
+            else {
+                steps = Integer.parseInt(args[0]);
+            }
         }
 
         long startTime = System.currentTimeMillis();
-        Simulator simulator = new Simulator(false);
+        Simulator simulator = new Simulator(config, false);
         simulator.setVerbose(false);
+        System.out.println("Starting headless simulation: " + config.describe());
         SimulationDiagnostics.DiagnosticSnapshot previousSnapshot = null;
         SimulationDiagnostics.DiagnosticSnapshot currentSnapshot =
             SimulationDiagnostics.capture(simulator.getField(), simulator.getContext());

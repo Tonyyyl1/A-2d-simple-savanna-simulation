@@ -11,7 +11,17 @@ public class FoodChainPredationSystem implements PredationSystem
     private static final double MAX_SUCCESS_COST_REDUCTION = 0.45;
     private static final double NO_TARGET_HUNT_COST_MULTIPLIER = 0.65;
 
-    private final Random rand = Randomizer.getRandom();
+    private final Random rand;
+
+    public FoodChainPredationSystem()
+    {
+        this(Randomizer.getRandom());
+    }
+
+    public FoodChainPredationSystem(Random rand)
+    {
+        this.rand = rand;
+    }
 
     public Location hunt(SavannahAnimal predator, Field field, SimulationContext context)
     {
@@ -29,26 +39,42 @@ public class FoodChainPredationSystem implements PredationSystem
         int range = Math.max(1, (int)Math.round(
             context.getWeatherSystem().getHuntingRange(predator) *
             predator.getEffectiveStaminaMultiplier()));
-        List<Location> locations = field.getLocationsWithin(predator.getLocation(), range);
+        TerrainNavigator.Reachability reachability =
+            TerrainNavigator.reachableDistances(context.getTerrainMap(),
+                predator.getLocation(), range);
+        List<Location> locations =
+            field.getLocationsWithin(predator.getLocation(), range,
+                                     context.getRandom());
         SavannahAnimal bestPrey = null;
         Location bestLocation = null;
         double bestScore = 0.0;
         for(Location location : locations) {
             Animal animal = field.getAnimalAt(location);
-            if(animal instanceof SavannahAnimal) {
-                SavannahAnimal prey = (SavannahAnimal)animal;
-                if(prey.isAlive() && predator.getProfile().canEat(prey.getProfile().getName())) {
-                    int distance = distance(predator.getLocation(), location);
-                    double abundance = preyAbundanceShare(predator, prey, context);
-                    double score = prey.getPredationVulnerability() *
-                                   preyStaminaVulnerability(prey) *
-                                   Math.sqrt(abundance) / Math.max(1, distance);
-                    if(score > bestScore) {
-                        bestScore = score;
-                        bestPrey = prey;
-                        bestLocation = location;
-                    }
-                }
+            if(!(animal instanceof SavannahAnimal)) {
+                continue;
+            }
+            SavannahAnimal prey = (SavannahAnimal)animal;
+            if(!prey.isAlive() ||
+               !predator.getProfile().canEat(prey.getProfile().getName()) ||
+               !context.getTerrainMap().isPassable(location)) {
+                continue;
+            }
+            int distance = reachability.distanceTo(location);
+            if(distance < 0) {
+                continue;
+            }
+            double abundance = preyAbundanceShare(predator, prey, context);
+            double habitat = HabitatPreferences.huntingModifier(predator, prey,
+                context.getTerrainMap().getTerrainAt(predator.getLocation()),
+                context.getTerrainMap().getTerrainAt(location));
+            double score = prey.getPredationVulnerability() *
+                           preyStaminaVulnerability(prey) *
+                           Math.sqrt(abundance) * habitat /
+                           Math.max(1, distance);
+            if(score > bestScore) {
+                bestScore = score;
+                bestPrey = prey;
+                bestLocation = location;
             }
         }
 
@@ -63,6 +89,12 @@ public class FoodChainPredationSystem implements PredationSystem
                                predator.getHuntingCondition() *
                                bestPrey.getPredationVulnerability() *
                                staminaContestModifier(predator, bestPrey) *
+                               HabitatPreferences.huntingModifier(predator,
+                                   bestPrey,
+                                   context.getTerrainMap()
+                                       .getTerrainAt(predator.getLocation()),
+                                   context.getTerrainMap()
+                                       .getTerrainAt(bestLocation)) *
                                Math.sqrt(preyAbundanceShare(predator, bestPrey, context));
         successChance = Math.min(predator.isSurvivalCritical() ? 0.72 : 0.62,
                                  successChance);
@@ -77,13 +109,6 @@ public class FoodChainPredationSystem implements PredationSystem
         }
         predator.spendStamina(failedHuntCost(predator, bestPrey));
         return null;
-    }
-
-    private int distance(Location first, Location second)
-    {
-        int rowDistance = Math.abs(first.row() - second.row());
-        int colDistance = Math.abs(first.col() - second.col());
-        return Math.max(rowDistance, colDistance);
     }
 
     private double preyAbundanceShare(SavannahAnimal predator, SavannahAnimal prey,
