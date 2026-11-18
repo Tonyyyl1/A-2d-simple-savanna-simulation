@@ -7,7 +7,7 @@ package savanna;
  */
 public final class EcologyRules
 {
-    public static final String VERSION = "v3.2-c4-l4";
+    public static final String VERSION = "v3.3-p1-herbivore";
 
     private EcologyRules()
     {

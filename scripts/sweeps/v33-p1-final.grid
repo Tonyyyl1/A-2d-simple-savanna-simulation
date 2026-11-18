@@ -1,0 +1,2 @@
+# v3.3 P-1 confirmation: the new defaults (v3.3-p1-herbivore) with predators off; must reproduce the round 14/15 candidate weather.droughtHerbivoreUpkeep=0.6
+base init.lion=0,init.cheetah=0

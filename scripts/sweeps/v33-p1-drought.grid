@@ -1,0 +1,8 @@
+# v3.3 P-1 round 13: N3 (weather.droughtHerbivoreUpkeep) on candidate A; 10000 steps x 3 seeds (shorter runs are prefixes)
+# base = candidate A: preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.15
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate weather.droughtHerbivoreUpkeep=0.75
+candidate weather.droughtHerbivoreUpkeep=0.5
+candidate weather.droughtHerbivoreUpkeep=0.25
+candidate weather.droughtHerbivoreUpkeep=0.0
+candidate weather.droughtHerbivoreUpkeep=0.5,species.gazelle.grazingRate=0.10

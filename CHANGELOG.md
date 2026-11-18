@@ -3,7 +3,11 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
-## Unreleased - v3.2 (plan v3.2, 2026-11-10 onward)
+## v3.2-2d-final - last release with the Swing interface (2026-11-13)
+
+Known limits: ecology gates (normalised balance <= 12, all species alive, hotspot span <= 300) pass for 5000 steps with thirst off on the development, validation, holdout and PROCEDURAL_V2 seeds. With thirst on the ecology is much worse (Buffalo collapses). In a 20,000-step run (seed 1111, thirst off) Cheetah went extinct at step 10,900. A browser-based 3D client (`./run3d.sh`) is included as a preview.
+
+### Added (v3.2 work, continued below)
 
 ### Added
 

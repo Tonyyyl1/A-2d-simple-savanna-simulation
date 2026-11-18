@@ -1,0 +1,11 @@
+# v3.3 P-1 round 5: N1 (0.5/0.1) around grass.capacityScale 0.35, where the hotspot span reaches ~300; N2 and Gazelle births to hold the fluctuation
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1,grass.capacityScale=0.35
+candidate repro.herbivoreConditionMin=0.3
+candidate species.gazelle.breedingProbability=0.09
+candidate repro.herbivoreConditionMin=0.3,species.gazelle.breedingProbability=0.09
+candidate grazing.refugeFill=0.15
+candidate grazing.fullIntakeFill=0.6
+candidate repro.herbivoreConditionMin=0.3,grass.capacityScale=0.33
+candidate repro.herbivoreConditionMin=0.3,species.gazelle.breedingProbability=0.09,grass.capacityScale=0.38
+candidate repro.herbivoreConditionMin=0.45
+candidate repro.herbivoreConditionMin=0.3,grazing.refugeFill=0.15

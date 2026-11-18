@@ -1,0 +1,11 @@
+# v3.3 P-1 round 10: Zebra's troughs are drought crashes after the herd has grazed the open grass to ~0.2 of capacity (births were not gated by grass); gate births on local grass for all herbivores
+# base = candidate A: preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.15
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+candidate repro.grassGate=1,repro.grassMin=0.2,repro.grassMax=0.6
+candidate repro.grassGate=1,repro.grassMin=0.25,repro.grassMax=0.6
+candidate repro.grassGate=1,repro.grassMin=0.15,repro.grassMax=0.5
+candidate repro.grassGate=1,repro.grassMin=0.3,repro.grassMax=0.7
+candidate repro.grassGate=1,repro.grassMin=0.2,repro.grassMax=0.6,starvation.herbivoreSteps=8
+candidate starvation.herbivoreSteps=8
+candidate starvation.herbivoreSteps=12
+candidate repro.grassGate=1,repro.grassMin=0.2,repro.grassMax=0.6,grazing.refugeFill=0.2

@@ -1,0 +1,7 @@
+# v3.3 P-1 confirmation of the three best round-7 candidates (4 dev seeds x 10000 steps)
+# A (the base line) = preyOverload 10, capacityScale 0.4, N1 0.5 / refuge 0.15
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.15,capacity.preyOverload=10,grass.capacityScale=0.4
+# B: preyOverload 12, refuge 0.1, N2 0.3
+candidate grazing.refugeFill=0.1,capacity.preyOverload=12,repro.herbivoreConditionMin=0.3
+# C: preyOverload 11, refuge 0.12
+candidate grazing.refugeFill=0.12,capacity.preyOverload=11

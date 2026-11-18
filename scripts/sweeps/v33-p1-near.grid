@@ -1,0 +1,11 @@
+# v3.3 P-1 round 7: neighbours of N1 0.5/0.1 + capacity.preyOverload 12 + grass.capacityScale 0.4 (round 6 best: span 352/132, lnSdRun 0.36, Gazelle min 1064/1171)
+base init.lion=0,init.cheetah=0,grazing.fullIntakeFill=0.5,grazing.refugeFill=0.1,capacity.preyOverload=12,grass.capacityScale=0.4
+candidate grazing.refugeFill=0.15
+candidate grass.capacityScale=0.42
+candidate grass.capacityScale=0.38
+candidate capacity.preyOverload=10
+candidate capacity.preyOverload=11,grazing.refugeFill=0.12
+candidate grazing.fullIntakeFill=0.6
+candidate capacity.preyOverload=10,grazing.refugeFill=0.15
+candidate repro.herbivoreConditionMin=0.3
+candidate capacity.preyOverload=13,grazing.refugeFill=0.15

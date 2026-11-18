@@ -29,6 +29,19 @@ export function installHooks(app) {
     select(id) { app.ui.select(id); const f = app.animals.frame; const i = f ? app.ui.find(f, id) : -1; return i >= 0 ? app.ui.detailsOf(f, i) : null; },
     inspectText() { return app.ui.inspect.textContent; },
     overlay(kind) { app.ui.overlaySelect.value = kind; app.ui.overlay = kind; app.ui.applyOverlay(); },
+    /** Like focusOn, but the animal must have the given executed-effect bit (1 drink, 4 graze) or the rest flag (bit 128 of flags when effect is 128). */
+    focusEffect(species, bit, distance = 9, height = 1.6) {
+      const f = app.animals.frame; if (!f) return null;
+      for (let i = 0; i < f.animalCount; i++) {
+        if (f.species[i] !== species) continue;
+        const ok = bit === 128 ? (f.animalFlags[i] & 128) : (f.effects[i] & bit);
+        if (!ok) continue;
+        const cell = app.relief.cell, x = (f.col[i] + 0.5) * cell, z = (f.row[i] + 0.5) * cell, y = app.relief.heightAtMeters(x, z);
+        app.rig.controls.target.set(x, y + 0.7, z); app.camera.position.set(x + distance * 0.6, y + height, z + distance); app.rig.controls.update();
+        return f.id[i];
+      }
+      return null;
+    },
     probe: {
       waterViolations: () => app.animals.waterViolations,
       maxJumpMeters: () => app.animals.maxJump,

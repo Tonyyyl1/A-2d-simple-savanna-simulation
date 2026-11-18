@@ -164,6 +164,17 @@ public class GrasslandFoodSystem implements FoodSystem
         grazingRate *= bite;
         double available = grass[location.row()][location.col()];
         double eaten = Math.min(available, grazingRate);
+        double fullFill = parameters.get(EcologyParameters.Key.GRAZING_FULL_INTAKE_FILL);
+        if(fullFill > 0.0) {
+            // N1: the thinner the grass, the smaller the bite, and the refuge is never taken.
+            double cellCapacity = capacity[location.row()][location.col()];
+            double refuge = parameters.get(EcologyParameters.Key.GRAZING_REFUGE_FILL);
+            double fill = cellCapacity <= 0.0 ? 0.0 : available / cellCapacity;
+            double intake = fullFill <= refuge ? (fill > refuge ? 1.0 : 0.0)
+                : Math.max(0.0, Math.min(1.0, (fill - refuge) / (fullFill - refuge)));
+            eaten = Math.max(0.0, Math.min(available - refuge * cellCapacity,
+                grazingRate * intake));
+        }
         grass[location.row()][location.col()] = available - eaten;
         consumedBiomass += eaten;
         int foodGained = (int)Math.round((eaten / Math.max(0.01, grazingRate)) * bite *

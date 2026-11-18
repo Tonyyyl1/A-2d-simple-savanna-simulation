@@ -29,6 +29,7 @@ public abstract class SavannahAnimal extends Animal
     /** M3 change F: fractional food use carried to the next step. */
     private double metabolismDebt;
     private double upkeepDebt;
+    private double droughtDebt;
     private double stamina;
     private final AnimalHydrationState hydrationState;
     private int dailyRestHours;
@@ -1287,7 +1288,7 @@ public abstract class SavannahAnimal extends Animal
         }
         if(!profile.isPredator() &&
            context.getWeatherSystem().getCurrentWeather() == WeatherType.DROUGHT) {
-            energyUse++;
+            energyUse += droughtUpkeepUse();
         }
         energyUse += gestationUpkeepUse();
         energyUse += populationPressureEnergyUse(context);
@@ -1301,6 +1302,21 @@ public abstract class SavannahAnimal extends Animal
         if(!context.isThirstEnabled()) {
             resolveStarvation(context);
         }
+    }
+
+    /**
+     * N3: extra food a herbivore uses in a drought step. The default 1.0 is the
+     * legacy whole unit; other values accumulate and carry the fraction.
+     */
+    private int droughtUpkeepUse()
+    {
+        double upkeep = EcologyParameters.current().get(
+            EcologyParameters.Key.DROUGHT_HERBIVORE_UPKEEP);
+        if(upkeep == 1.0) return 1;
+        droughtDebt += upkeep;
+        int whole = (int)Math.floor(droughtDebt);
+        droughtDebt -= whole;
+        return whole;
     }
 
     /**

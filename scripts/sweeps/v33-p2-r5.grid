@@ -1,0 +1,4 @@
+# v3.3 P-2 round 5 (20000 steps, 4 dev seeds 1111,2111,11111,12111). Round 4 candidate B = territory.lion=4, territory.lionRadius=27, cheetah breedingProbability 0.035, cheetahInterference 1.75: passes except Cheetah mean 126 on seed 1111 (limit 120) and Buffalo min 458 on seed 2111 (clause 480); seed 12111 never run. Reuse note: copy the finished r4 logs of B and the base default logs into the new sweep dir's runs/ before starting, so only new runs are executed.
+candidate territory.lion=4,territory.lionRadius=27,species.cheetah.breedingProbability=0.035,predation.cheetahInterference=1.75
+candidate territory.lion=4,territory.lionRadius=27,species.cheetah.breedingProbability=0.035,predation.cheetahInterference=1.85
+candidate territory.lion=4,territory.lionRadius=27,species.cheetah.breedingProbability=0.03,predation.cheetahInterference=1.75

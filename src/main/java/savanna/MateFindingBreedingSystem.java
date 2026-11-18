@@ -196,6 +196,15 @@ public class MateFindingBreedingSystem implements BreedingSystem
         probability *= infection;
         double survival = Math.max(0.10,
             1.0 - parent.getSurvivalPressure() * 0.82);
+        double conditionMin = EcologyParameters.current()
+            .get(EcologyParameters.Key.HERBIVORE_CONDITION_MIN);
+        if(conditionMin > 0.0 && !parent.getProfile().isPredator()) {
+            // N2: conception follows the body condition (food share), at most the old factor.
+            survival = Math.min(survival, conditionFactor(
+                (double)parent.getFoodLevel() / parent.getProfile().getMaxFoodLevel(),
+                conditionMin, EcologyParameters.current()
+                    .get(EcologyParameters.Key.HERBIVORE_CONDITION_FULL)));
+        }
         probability *= survival;
         double stamina = Math.max(0.20,
             parent.getEffectiveStaminaMultiplier());
@@ -276,6 +285,16 @@ public class MateFindingBreedingSystem implements BreedingSystem
         double fill = context.getFoodSystem().getLocalFill(parent.getLocation(),
             parent.getProfile().getSearchRange());
         return Math.max(0.15, Math.min(1.12, fill * 1.55));
+    }
+
+    /**
+     * N2: 0 at or below {@code min}, rising linearly to 1 at {@code full}
+     * (a step at {@code min} when {@code full} is not above it).
+     */
+    static double conditionFactor(double foodShare, double min, double full)
+    {
+        if(full <= min) return foodShare > min ? 1.0 : 0.0;
+        return Math.max(0.0, Math.min(1.0, (foodShare - min) / (full - min)));
     }
 
     /** M3 change B': whether the grass gate covers this species (0 all herbivores, 1 Gazelle only). */

@@ -105,13 +105,13 @@ public final class EcologyParameters
         HERBIVORE_GESTATION("repro.herbivoreGestation", 6, 1, 10_000, true),
         HERBIVORE_RESERVE_FRACTION("repro.herbivoreReserveFraction", 0.15, 0.001, 1.0, false),
         LOCAL_WINDOW_RADIUS("capacity.windowRadius", 6, 1, 30, true),
-        PREY_OVERLOAD_COUNT("capacity.preyOverload", 20, 1, 10_000, true),
+        PREY_OVERLOAD_COUNT("capacity.preyOverload", 10, 1, 10_000, true),
         PREDATOR_OVERLOAD_COUNT("capacity.predatorOverload", 8, 1, 10_000, true),
         OVERLOAD_EXPONENT("capacity.overloadExponent", 2.0, 0.0, 10.0, false),
         OVERLOAD_FLOOR("capacity.overloadFloor", 0.05, 0.0, 1.0, false),
         GRASS_GROWTH_RATE("grass.growthRate", 0.06, 0.0, 1.0, false),
         GRASS_FLOOR_RATE("grass.floorRate", 0.004, 0.0, 1.0, false),
-        GRASS_CAPACITY_SCALE("grass.capacityScale", 0.5, 0.0, 10.0, false),
+        GRASS_CAPACITY_SCALE("grass.capacityScale", 0.4, 0.0, 10.0, false),
         // Predator reproduction and cubs (family 4; v3-m3-f4-predator:
         // conception x2 -> x3, adult margin 20 -> 0, mate sense 3 -> 5,
         // chosen over seeds 1111-4111).
@@ -131,6 +131,17 @@ public final class EcologyParameters
         // v3.2 B-1: most land steps a hunting predator may advance in one step.
         LION_SPEED("movement.lionSpeed", 2, 1, 6, true),
         CHEETAH_SPEED("movement.cheetahSpeed", 3, 1, 6, true),
+        // v3.3 P-1 (N1, N2; user-approved 2026-11-13; defaults are off).
+        /** N1: grass fill (biomass / capacity of the cell) at or above which a bite is full; below it the bite shrinks linearly to nothing at the refuge (0 = off). */
+        GRAZING_FULL_INTAKE_FILL("grazing.fullIntakeFill", 0.5, 0.0, 1.0, false),
+        /** N1: share of a cell's capacity that grazing never takes (a refuge the grass regrows from); only read when the full-intake fill is on. */
+        GRAZING_REFUGE_FILL("grazing.refugeFill", 0.15, 0.0, 0.9, false),
+        /** N2: a herbivore at or below this share of max food does not conceive; the factor rises linearly to 1 at the full share (0 = off). */
+        HERBIVORE_CONDITION_MIN("repro.herbivoreConditionMin", 0.0, 0.0, 1.0, false),
+        /** N2: share of max food at which the condition factor reaches 1. */
+        HERBIVORE_CONDITION_FULL("repro.herbivoreConditionFull", 0.9, 0.01, 1.5, false),
+        /** N3 (2026-11-15, user-approved): extra food a herbivore uses per drought step (1.0 = legacy +1; fractions carry over). */
+        DROUGHT_HERBIVORE_UPKEEP("weather.droughtHerbivoreUpkeep", 0.6, 0.0, 3.0, false),
         // v3.2 C-1 levers (all 0 = off).
         /** C-1 lever 1: a herbivore at or above this share of max food does not graze; below it only grazes to fill up. */
         GRAZING_SATIATION("grazing.satiationFraction", 0.0, 0.0, 1.0, false),

@@ -37,6 +37,11 @@ public final class EcologyMatrixRunner
     private static final int MAX_OVERLOAD_SPAN = 300;
     /** B1: the balance gate averages each species over this many final steps. */
     private static final int MEAN_WINDOW = 500;
+    /** P-0: the whole-run fluctuation measures start no earlier than this step. */
+    private static final int RUN_START_MIN = 1000;
+    /** P-0: a sampled local minimum below this share of the target counts as a trough. */
+    private static final double TROUGH_SHARE = 0.33;
+    private static final int TROUGH_INTERVAL = 100;
 
     private EcologyMatrixRunner()
     {
@@ -106,6 +111,8 @@ public final class EcologyMatrixRunner
         }
         BirthTrace birthTrace = new BirthTrace(simulator.getField());
         simulator.getContext().addEventListener(birthTrace);
+        PersistenceStats persistence = new PersistenceStats();
+        simulator.getContext().addEventListener(persistence);
         Diagnostics diagnostics = null;
         if(diag) {
             diagnostics = new Diagnostics();
@@ -137,6 +144,10 @@ public final class EcologyMatrixRunner
         Map<String, Long> windowSum = new LinkedHashMap<>();
         Map<String, double[]> windowLn = new LinkedHashMap<>();
         int windowSamples = 0;
+        // P-0: whole-run fluctuation measure, from max(1000, steps/5) to the end.
+        int runStart = Math.max(RUN_START_MIN, steps / 5);
+        Map<String, double[]> runLn = new LinkedHashMap<>();
+        int runSamples = 0;
         int firstExtinctionStep = -1;
         String firstExtinctSpecies = "";
         long start = System.nanoTime();
@@ -148,6 +159,17 @@ public final class EcologyMatrixRunner
             completed++;
             hotspots.observe(simulator.getField());
             Map<String, Integer> counts = simulator.getField().countLivingBySpecies();
+            persistence.observe(simulator.getField(), counts, simulator.getStep(), runStart);
+            if(simulator.getStep() >= runStart) {
+                runSamples++;
+                for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
+                    String species = factory.getProfile().getName();
+                    double[] ln = runLn.computeIfAbsent(species, key -> new double[2]);
+                    double logCount = Math.log(counts.getOrDefault(species, 0) + 1.0);
+                    ln[0] += logCount;
+                    ln[1] += logCount * logCount;
+                }
+            }
             if(index >= steps - meanWindow) {
                 windowSamples++;
                 for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
@@ -237,7 +259,11 @@ public final class EcologyMatrixRunner
             .append(" config=").append(config.describe().replace(' ', '_'))
             .append(" means=").append(means(windowSum, windowSamples))
             .append(" lnSd=").append(lnSd(windowLn, windowSamples))
-            .append(" participants=").append(String.join(",", participants));
+            .append(" participants=").append(String.join(",", participants))
+            .append(" lnSdRun=").append(lnSd(runLn, runSamples))
+            .append(" troughs=").append(persistence.troughs(participants, targetScale))
+            .append(" femMin=").append(persistence.femaleMinimum(participants))
+            .append(" starveShare=").append(persistence.starveShare(participants));
         System.out.println(line);
         if(diagnostics != null) {
             System.out.println(diagnostics.describe(seed, thirst, simulator.getContext()));
@@ -416,6 +442,110 @@ public final class EcologyMatrixRunner
                     .append(kills.getOrDefault(profile.getName(), 0));
             }
             return text.toString();
+        }
+    }
+
+    /**
+     * P-0 persistence statistics (observation only, never part of the gate and
+     * not compared by {@code scripts/eco-equivalence.sh}): the sampled counts
+     * for {@code troughs=}, the least number of adult females per predator
+     * species for {@code femMin=}, and the share of all deaths that were
+     * starvation for {@code starveShare=}.
+     */
+    static final class PersistenceStats implements SimulationEventListener
+    {
+        private final Map<String, java.util.List<Integer>> samples = new TreeMap<>();
+        private final Map<String, Integer> femaleMinimum = new TreeMap<>();
+        private final Map<String, Integer> deaths = new TreeMap<>();
+        private final Map<String, Integer> starved = new TreeMap<>();
+
+        @Override
+        public void onEvent(SimulationEvent event)
+        {
+            if(event.type != SimulationEvent.EventType.DEATH &&
+                event.type != SimulationEvent.EventType.DISEASE_DEATH) return;
+            deaths.merge(event.actorSpecies, 1, Integer::sum);
+            if(event.type == SimulationEvent.EventType.DEATH &&
+                event.deathCause == DeathCause.STARVATION) {
+                starved.merge(event.actorSpecies, 1, Integer::sum);
+            }
+        }
+
+        void observe(Field field, Map<String, Integer> counts, int step, int sampleStart)
+        {
+            Map<String, Integer> adultFemales = new TreeMap<>();
+            for(Animal animal : field.getAnimals()) {
+                if(!(animal instanceof SavannahAnimal) || !animal.isAlive()) continue;
+                SavannahAnimal savannah = (SavannahAnimal)animal;
+                if(savannah.getProfile().isPredator() && savannah.isAdult() &&
+                    savannah.getSex() == Sex.FEMALE) {
+                    adultFemales.merge(savannah.getProfile().getName(), 1, Integer::sum);
+                }
+            }
+            for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
+                SpeciesProfile profile = factory.getProfile();
+                if(profile.isPredator()) {
+                    femaleMinimum.merge(profile.getName(),
+                        adultFemales.getOrDefault(profile.getName(), 0), Math::min);
+                }
+            }
+            if(step >= sampleStart && step % TROUGH_INTERVAL == 0) {
+                for(SpeciesFactory factory : SpeciesRegistry.getFactories()) {
+                    String species = factory.getProfile().getName();
+                    samples.computeIfAbsent(species, key -> new java.util.ArrayList<>())
+                        .add(counts.getOrDefault(species, 0));
+                }
+            }
+        }
+
+        /** Per species: sampled local minima below 0.33 of the scaled target ("-" without samples). */
+        String troughs(java.util.Set<String> participants, double scale)
+        {
+            StringBuilder text = new StringBuilder();
+            for(String species : participants) {
+                java.util.List<Integer> series = samples.get(species);
+                if(text.length() > 0) text.append(',');
+                if(series == null || series.size() < 3) {
+                    text.append(species).append(":-");
+                    continue;
+                }
+                double limit = TROUGH_SHARE * EcologyTargets.target(species) * scale;
+                int troughs = 0;
+                for(int i = 1; i < series.size() - 1; i++) {
+                    int value = series.get(i);
+                    if(value < series.get(i - 1) && value <= series.get(i + 1) && value < limit) {
+                        troughs++;
+                    }
+                }
+                text.append(species).append(':').append(troughs);
+            }
+            return text.length() == 0 ? "-" : text.toString();
+        }
+
+        /** Least number of adult females over the run, per participating predator. */
+        String femaleMinimum(java.util.Set<String> participants)
+        {
+            StringBuilder text = new StringBuilder();
+            for(String species : participants) {
+                Integer least = femaleMinimum.get(species);
+                if(least == null) continue;
+                if(text.length() > 0) text.append(',');
+                text.append(species).append(':').append(least);
+            }
+            return text.length() == 0 ? "-" : text.toString();
+        }
+
+        /** Starvation deaths over all deaths, per participating species. */
+        String starveShare(java.util.Set<String> participants)
+        {
+            StringBuilder text = new StringBuilder();
+            for(String species : participants) {
+                int total = deaths.getOrDefault(species, 0);
+                if(text.length() > 0) text.append(',');
+                text.append(species).append(':').append(String.format(java.util.Locale.ROOT,
+                    "%.3f", total == 0 ? 0.0 : (double)starved.getOrDefault(species, 0) / total));
+            }
+            return text.length() == 0 ? "-" : text.toString();
         }
     }
 

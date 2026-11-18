@@ -72,10 +72,10 @@ public final class V27PerfTests
         simulator.setVerbose(false);
         String[] expected = {
             // Deterministic steps 1-3, updated whenever EcologyRules.VERSION
-            // changes. Intentional trace migration: v3.2-c4-l4
-            "929286d8d01332fe925a3fbef336b57409e1b22ce14d77382e6a0c7bb2f7423a",
-            "31554b2f38bc624fd8185f108b7429f06bc2b6e4e2f50077fbc6548304f2b741",
-            "5f3d35db85543f414a93855fa720f1cab9f7f8d40b162c987eede4a2efea08db"
+            // changes. Intentional trace migration: v3.3-p1-herbivore
+            "d8c06b214f5b907c098cde727056c095495b35d03f84a50ec678112028c5c70e",
+            "ef5af309e74c3dcc1ad557b4c46d1f9e398a599bec65bc514bb4fc57d56448d8",
+            "885c342c63547a09585b2d6b650feb562fc60787b7f9c3959442c32b718051cc"
         };
         for(int index = 0; index < expected.length; index++) {
             simulator.simulateOneStep();
