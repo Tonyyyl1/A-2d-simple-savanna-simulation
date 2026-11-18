@@ -1,0 +1,9 @@
+# M3-1 family 2: water edge and threat avoidance (plan v3.0 §7), on top of
+# v3-m3-f1-predation. Evidence: with thirst on every family-1 candidate lost
+# both runs (Gazelle at the water, then Cheetah); about 58% of thirst-on
+# female breeding decisions were WATER_SUPPRESSED; queueing 3k-12k per run.
+# waterFleeMode: 0 water first (current), 1 non-critical seekers may flee,
+# 2 drinkers too. drinkPercentPerStep shortens the shore session.
+axis avoidance.waterFleeMode=0,1,2
+axis avoidance.threatRadius=3,4,6
+axis water.drinkPercentPerStep=35,50,70

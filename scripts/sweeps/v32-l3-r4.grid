@@ -1,0 +1,6 @@
+# v3.2 C-3 round 4: territory limit 1 radius 16 survives 3 of 4 seeds with Cheetah means 45-87; seed 11111 still goes extinct (step 2830)
+base init.lion=0,territory.cheetah=1,territory.cheetahRadius=16
+axis predation.cheetahSkillScale=1.0,1.3
+axis species.gazelle.foodValue=34,42
+axis predation.refugeCount=4,10
+axis social.mateSenseFactor=5,10

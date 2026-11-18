@@ -1,0 +1,12 @@
+# M3 hydration calibration (2026-10-20), thirst on only (thirst off ignores
+# these keys). Evidence (round 2, build/m3-sweep-f7): with refuge the
+# thirst-on extinction moved to Cheetah; even with change A it logs ~3300
+# WATER_SUPPRESSED breeding decisions (mostly critical dehydration) against
+# 139 conceptions, and starves (295 deaths vs 160 births). Base: the round-2
+# candidate with the best thirst-off balance (12.39/12.94) and the latest
+# thirst-on extinctions (Cheetah at 950/733).
+base repro.conceiveWhileThirsty=1,predation.refugeCount=10,predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,repro.predatorConceptionMultiplier=4
+axis hydration.thirstyThreshold=50,60,70
+axis hydration.criticalThreshold=20,30
+axis hydration.baseDrain=0.16,0.24
+axis hydration.predatorDrainMultiplier=0.8,1.1

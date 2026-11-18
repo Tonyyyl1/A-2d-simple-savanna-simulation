@@ -1,0 +1,4 @@
+# v3.2 C-3 round 7 (plan backup lever): same-species interference on hunting success damps Cheetah booms and busts
+base init.lion=0,territory.cheetahRadius=16
+axis territory.cheetah=1,2
+axis predation.interference=0.1,0.3,0.7

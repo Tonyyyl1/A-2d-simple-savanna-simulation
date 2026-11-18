@@ -1,0 +1,7 @@
+# M3-1 family 3 confirmation on validation seeds 3111/4111 (not holdout):
+# best thirst-on survival (exponent 3) and the three closest to the
+# thirst-off gates (balance and hotspot span), plus the default.
+candidate capacity.overloadExponent=3
+candidate repro.herbivoreConceptionMultiplier=1.5,capacity.overloadExponent=3,grass.capacityScale=0.8
+candidate repro.herbivoreConceptionMultiplier=1.5,capacity.preyOverload=20,capacity.overloadExponent=3,grass.capacityScale=0.8
+candidate repro.herbivoreConceptionMultiplier=1.5,capacity.preyOverload=20,grass.capacityScale=0.8

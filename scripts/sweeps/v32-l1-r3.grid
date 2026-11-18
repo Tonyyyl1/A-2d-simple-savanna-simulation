@@ -1,0 +1,5 @@
+# v3.2 C-1 round 3: grass supply 0.4-0.5 gave span<30 but Gazelle dominated; niche partition and a lower Gazelle birth rate should rebalance
+base init.lion=0,init.cheetah=0
+axis grass.capacityScale=0.4,0.5
+axis grazing.nichePartition=0.4,0.7
+axis species.gazelle.breedingProbability=0.07,0.1,0.128

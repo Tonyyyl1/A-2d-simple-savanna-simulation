@@ -1,0 +1,22 @@
+html, body { margin: 0; height: 100%; background: #101418; color: #e8e8e8; font: 13px ui-monospace, Menlo, monospace; overflow: hidden; }
+#status { display: none; left: 12px; top: 60px; position: fixed; background: #400a; padding: 4px 8px; border-radius: 4px; }
+#ui > * { position: fixed; background: #0b0f14cc; border: 1px solid #ffffff22; border-radius: 6px; padding: 6px 10px; }
+#topbar { left: 12px; top: 12px; display: flex; gap: 8px; align-items: center; }
+#topbar button, #topbar select, .startbox button, .startbox input, .startbox select { background: #1b2430; color: #e8e8e8; border: 1px solid #ffffff33; border-radius: 4px; padding: 3px 8px; font: inherit; }
+#topbar button:hover { background: #2a384a; cursor: pointer; }
+#clock { min-width: 270px; }
+#waiting { color: #ffb347; }
+#pop { right: 12px; top: 12px; width: 300px; }
+.poprow { display: flex; align-items: center; gap: 6px; height: 26px; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; }
+.popname { width: 62px; } .popvalue { width: 90px; text-align: right; font-size: 11px; color: #bbb; }
+#balance { margin-top: 4px; font-size: 11px; color: #9ab; }
+#inspect { left: 12px; bottom: 190px; width: 300px; line-height: 1.5; }
+#events { left: 12px; bottom: 12px; width: 420px; }
+#eventcounts { font-size: 11px; color: #9ab; margin-bottom: 3px; }
+.ev { font-size: 11px; cursor: pointer; padding: 1px 0; } .ev:hover { color: #fff; background: #ffffff14; }
+#minimap { right: 12px; bottom: 12px; padding: 2px; cursor: pointer; }
+#start { inset: 0; border-radius: 0; background: #000a; align-items: center; justify-content: center; }
+.startbox { background: #121a24; padding: 18px 22px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; min-width: 300px; }
+.startbox label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.startbox h2 { margin: 0 0 6px; } .hint { color: #8a97a6; font-size: 11px; margin: 4px 0; }

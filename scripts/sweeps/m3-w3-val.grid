@@ -1,0 +1,2 @@
+# M3 round W3: best W setting (waterhole radius 4, success x0.6) on validation seeds 3111/4111/5111, 1000 steps, thirst off/on.
+candidate predation.waterZoneRadius=4,predation.waterZoneSuccess=0.6

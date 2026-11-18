@@ -1,0 +1,5 @@
+# v3.2 C-4 round 2: with interference on Cheetah only, three seeds pass 5000 steps (balanceNorm 2.2-5.2) but seed 2111 loses Cheetah at step 398 and Lion means are 44-57 (target 100)
+base init.lion=100
+axis predation.lionSkillScale=0.9,1.1
+axis predation.cheetahInterference=1.0,1.5
+axis species.cheetah.breedingProbability=0.058,0.08

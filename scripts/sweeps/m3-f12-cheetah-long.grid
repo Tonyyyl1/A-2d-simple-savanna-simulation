@@ -1,0 +1,11 @@
+# M3 round 6 (2026-10-21): Cheetah viability over 5000 steps (G-ECO-1), base
+# v3-m3-model-hydration + satiation 0.9 (best 5000-step survival in
+# build/m3-sweep-f10, Cheetah to step 4193). Evidence: all 18 settings of
+# that sweep lose Cheetah at steps 1482-4193 with Gazelle still present;
+# Cheetah deaths are ~95% starvation; Lion kills as many Gazelle as Cheetah
+# does, and Gazelle flee active Cheetahs within the threat radius.
+# Run with --steps=5000 --seeds=1111 --thirst=off.
+base predation.satiationFraction=0.9
+axis predation.cheetahSkillScale=1.2,1.4,1.6
+axis avoidance.threatRadius=3,4
+axis predation.refugeCount=8,12

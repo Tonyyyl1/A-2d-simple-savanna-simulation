@@ -1,0 +1,3 @@
+# M3 round F18: 5000-step test of the two best F17 settings (E k=3.0 with stronger Lion).
+candidate predation.preySizePreference=3.0,predation.lionSkillScale=2.5,repro.predatorConceptionMultiplier=6.0
+candidate predation.preySizePreference=3.0,predation.lionSkillScale=2.0,repro.predatorConceptionMultiplier=6.0

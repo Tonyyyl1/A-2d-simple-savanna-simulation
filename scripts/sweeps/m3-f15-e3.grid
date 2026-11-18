@@ -1,0 +1,7 @@
+# M3 round F15: build on E k=3.0, the only k that kept all five species alive for 5000 steps
+# on both seeds 1111 (balance 24.09, span 584) and 2111 (balance 2.50, span 402) in round F14.
+# Axes: Cheetah metabolism (F) and the prey overload threshold (span, G-ECO-3).
+base predation.preySizePreference=3.0
+axis metabolism.cheetah=1.0,0.8
+axis capacity.preyOverload=20,15,12
+candidate predation.preySizePreference=3.5

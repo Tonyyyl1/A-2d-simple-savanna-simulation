@@ -1,0 +1,6 @@
+# M3 round A1: predator territory limits (births scaled down when more conspecifics than the limit
+# stand inside territory.radius, default 10) x Cheetah hunting range bonus (C1).
+# 1000-step dev screen, seeds 1111/2111, thirst off and on. Ranked on the windowed-mean balance (B1).
+axis territory.lion=0,3,6
+axis territory.cheetah=0,3,6
+axis predation.cheetahRangeBonus=0,3

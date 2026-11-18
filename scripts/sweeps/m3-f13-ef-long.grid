@@ -1,0 +1,8 @@
+# M3 model changes E and F (user-approved 2026-10-21) on v3-m3-model-hydration,
+# 5000 steps, seed 1111, thirst off (G-ECO-1). Evidence: 0 of 31 earlier
+# 5000-step settings kept Cheetah alive; ~95% of Cheetah deaths are
+# starvation; Lion kills as many Gazelle as Cheetah. E steers Lion toward
+# large prey; F lowers predator food use per step.
+axis predation.preySizePreference=0,1,2
+axis metabolism.cheetah=0.6,0.8,1.0
+axis metabolism.lion=0.8,1.0

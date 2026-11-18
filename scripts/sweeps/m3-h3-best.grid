@@ -1,0 +1,3 @@
+# M3 round H3: best H2 setting (E k=2.0 + G stage 1 + density response 1.0): seed 1111 5000-step thirst-off
+# passed G-ECO-1/3 (balance 4.54, span 255) but 2111 lost Cheetah @3043. Test more seeds and 1000-step validation.
+candidate predation.preySizePreference=2.0,predation.cheetahZebraStage=1,predation.densityResponse=1.0

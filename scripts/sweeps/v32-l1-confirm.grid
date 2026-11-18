@@ -1,0 +1,4 @@
+# v3.2 C-1 confirm: the top three round-3 candidates, 5000 steps on the four development seeds
+candidate grass.capacityScale=0.4,grazing.nichePartition=0.4,species.gazelle.breedingProbability=0.07,init.lion=0,init.cheetah=0
+candidate grass.capacityScale=0.5,grazing.nichePartition=0.4,init.lion=0,init.cheetah=0
+candidate grass.capacityScale=0.5,grazing.nichePartition=0.4,species.gazelle.breedingProbability=0.1,init.lion=0,init.cheetah=0

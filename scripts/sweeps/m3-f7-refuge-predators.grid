@@ -1,0 +1,11 @@
+# M3 model changes, round 2 (2026-10-20): A on, refuge at intermediate
+# strength, predator hunting re-tuned to compensate. Evidence (family 6,
+# build/m3-sweep-f6): refuge 15 + A kept all four runs alive (first
+# thirst-on survivals) but starved the predators (Lion 2-38, Cheetah 2-96,
+# balance 112-739); satiation (B) and vigilance only made balance worse.
+base repro.conceiveWhileThirsty=1
+axis predation.refugeCount=8,10,12
+axis predation.cheetahSkillScale=0.8,1.0,1.2
+axis predation.lionSkillScale=1.2,1.5
+candidate predation.refugeCount=10,predation.cheetahSkillScale=1.0,predation.lionSkillScale=1.5,repro.predatorConceptionMultiplier=4
+candidate predation.refugeCount=12,predation.cheetahSkillScale=1.2,predation.lionSkillScale=1.5,repro.predatorConceptionMultiplier=4

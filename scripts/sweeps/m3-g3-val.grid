@@ -1,0 +1,4 @@
+# M3 round G3: 1000-step dev and validation seeds, thirst off/on, for the best G setting
+# (E k=2.0 + G stage 1) and G stage 1 alone.
+candidate predation.preySizePreference=2.0,predation.cheetahZebraStage=1
+candidate predation.cheetahZebraStage=1

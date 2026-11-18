@@ -1,0 +1,9 @@
+# M3 round 5 (2026-10-21): balance on v3-m3-model-hydration plus the 5000-step
+# winner of build/m3-sweep-f10 (pick-long.py). Evidence (T3 after 5a6fd07):
+# prey in the thousands (Gazelle under thirst, Zebra without) against
+# predators in the low hundreds; balance 9.5-21.6 off, 13.5-46.6 on.
+base predation.cheetahSkillScale=1.2,predation.satiationFraction=0.9,predation.refugeCount=12
+axis grass.capacityScale=0.6,0.7,0.8
+axis repro.herbivoreConceptionMultiplier=1.2,1.5
+axis predation.lionSkillScale=1.5,1.8
+axis capacity.predatorOverload=8,12

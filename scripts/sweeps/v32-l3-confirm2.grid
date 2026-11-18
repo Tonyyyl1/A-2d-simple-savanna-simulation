@@ -1,0 +1,4 @@
+# v3.2 C-3 confirm 2: top three round-2 candidates, 5000 steps, four development seeds
+candidate predation.cheetahSkillScale=0.8,territory.cheetah=2,territory.cheetahRadius=16,species.cheetah.breedingProbability=0.02,init.lion=0
+candidate predation.cheetahSkillScale=0.8,territory.cheetah=2,territory.cheetahRadius=16,species.cheetah.breedingProbability=0.035,init.lion=0
+candidate predation.cheetahSkillScale=0.8,territory.cheetah=1,territory.cheetahRadius=16,species.cheetah.breedingProbability=0.035,init.lion=0

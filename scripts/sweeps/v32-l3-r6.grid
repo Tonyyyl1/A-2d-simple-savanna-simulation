@@ -1,0 +1,4 @@
+# v3.2 C-3 round 6: mate search is harmful (all runs extinct) and stays off; juveniles starve at ages 42/78/114 right after becoming hunters - more reserve and grace
+base init.lion=0,territory.cheetah=1,territory.cheetahRadius=16
+axis repro.predatorAdultMargin=12,24,36
+axis starvation.predatorSteps=12,24

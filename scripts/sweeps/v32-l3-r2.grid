@@ -1,0 +1,5 @@
+# v3.2 C-3 round 2: Cheetah boom-bust (0 to 314 within 2000 steps) kills populations on seeds 11111/12111; tighter territory and lower fertility
+base init.lion=0,predation.cheetahSkillScale=0.8
+axis territory.cheetah=1,2
+axis territory.cheetahRadius=16,24,30
+axis species.cheetah.breedingProbability=0.02,0.035

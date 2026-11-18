@@ -1,0 +1,3 @@
+# v3.2 C-2 confirm: two lever-2 candidates, 5000 steps, four development seeds
+candidate predation.lionSkillScale=0.9,species.lion.breedingProbability=0.012,territory.lionRadius=24,territory.lion=3,init.cheetah=0
+candidate predation.lionSkillScale=1.2,species.lion.breedingProbability=0.012,territory.lionRadius=24,territory.lion=3,init.cheetah=0

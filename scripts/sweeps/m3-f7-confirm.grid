@@ -1,0 +1,6 @@
+# M3 round 2 confirmation: top 5 of build/m3-sweep-f7 on validation seeds 3111/4111 (not holdout) and a 5000-step seed-1111 thirst-off run
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.2,predation.refugeCount=12,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0
+candidate predation.lionSkillScale=1.5,predation.refugeCount=12,repro.conceiveWhileThirsty=1
+candidate predation.cheetahSkillScale=1.0,predation.refugeCount=12,repro.conceiveWhileThirsty=1
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=12,repro.conceiveWhileThirsty=1
+candidate predation.cheetahSkillScale=1.0,predation.refugeCount=10,repro.conceiveWhileThirsty=1

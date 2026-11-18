@@ -1,0 +1,5 @@
+# v3.2 C-1 round 4: from capacityScale 0.5 + nichePartition 0.4 (Buffalo a bit high, Zebra a bit low, Gazelle oscillating on 2 of 4 seeds)
+base grass.capacityScale=0.5,grazing.nichePartition=0.4,init.lion=0,init.cheetah=0
+axis species.buffalo.breedingProbability=0.04,0.048,0.056
+axis species.zebra.breedingProbability=0.068,0.085
+axis capacity.overload.gazelle=0,45

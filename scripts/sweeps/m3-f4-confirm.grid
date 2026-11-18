@@ -1,0 +1,8 @@
+# M3-1 family 4 confirmation (validation seeds 3111/4111, plus a 5000-step
+# seed-1111 thirst-off run): the five candidates closest to the thirst-off
+# gates in build/m3-sweep-f4, plus the default.
+candidate repro.predatorConceptionMultiplier=3,repro.provisionRadius=6,social.mateSenseFactor=5
+candidate repro.predatorConceptionMultiplier=3,repro.predatorAdultMargin=0,social.mateSenseFactor=5
+candidate repro.predatorConceptionMultiplier=3,repro.provisionRadius=6
+candidate repro.predatorAdultMargin=0,social.mateSenseFactor=5
+candidate repro.predatorConceptionMultiplier=4,social.mateSenseFactor=5

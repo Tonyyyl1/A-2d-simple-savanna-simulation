@@ -1,0 +1,7 @@
+# M3 E/F: top 6 of the 5000-step sweep build/m3-sweep-f13 on the 1000-step dev runs
+candidate predation.preySizePreference=2.0
+candidate predation.preySizePreference=1.0
+candidate predation.preySizePreference=2.0,metabolism.lion=0.8,metabolism.cheetah=0.6
+candidate predation.preySizePreference=2.0,metabolism.lion=0.8
+candidate predation.preySizePreference=1.0,metabolism.cheetah=0.8
+candidate predation.preySizePreference=1.0,metabolism.lion=0.8,metabolism.cheetah=0.6

@@ -1,0 +1,3 @@
+# v3.2 C-3 confirm 3: territory limit 1 with the default radius (10) and with radius 16; default skill and fertility
+candidate territory.cheetah=1,init.lion=0
+candidate territory.cheetah=1,territory.cheetahRadius=16,init.lion=0

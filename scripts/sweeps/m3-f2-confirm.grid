@@ -1,0 +1,5 @@
+# M3-1 family 2 confirmation on validation seeds 3111/4111 (not holdout):
+# the top two of build/m3-sweep-f2, the free drink-50 variant, and the default.
+candidate avoidance.threatRadius=6,water.drinkPercentPerStep=50
+candidate avoidance.threatRadius=6,avoidance.waterFleeMode=1
+candidate water.drinkPercentPerStep=50

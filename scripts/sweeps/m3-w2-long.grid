@@ -1,0 +1,4 @@
+# M3 round W2: best W1 settings at 5000 steps (seeds 1111/2111, thirst off): alone, milder, and with E k=2 + G1 + density response 1.0.
+candidate predation.waterZoneRadius=4,predation.waterZoneSuccess=0.6
+candidate predation.waterZoneRadius=4,predation.waterZoneSuccess=0.8
+candidate predation.waterZoneRadius=4,predation.waterZoneSuccess=0.6,predation.preySizePreference=2.0,predation.cheetahZebraStage=1,predation.densityResponse=1.0

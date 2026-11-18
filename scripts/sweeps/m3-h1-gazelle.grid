@@ -1,0 +1,5 @@
+# M3 round H1: Gazelle birth limit (capacity.gazelleOverload) x predator density response.
+# Thirst on swells Gazelle to 2500-9000 (balance = Gazelle / min(Lion, Zebra)); 1000-step
+# dev screen on seeds 1111/2111, thirst off and on.
+axis capacity.gazelleOverload=0,4,6,10
+axis predation.densityResponse=0.0,0.5,1.0

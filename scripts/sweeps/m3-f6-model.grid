@@ -1,0 +1,12 @@
+# M3 model changes A-C (user-approved 2026-10-20), on top of
+# v3-m3-f4-predator. Evidence (stop-rule report, plan §13): thirst on 0/280
+# alive with ~57-64% of female breeding decisions WATER_SUPPRESSED (A); the
+# 5000-step run collapses after the generalist Lion keeps killing the scarce
+# Gazelle (B satiation, C refuge/vigilance).
+axis repro.conceiveWhileThirsty=0,1
+axis predation.satiationFraction=0,0.7,0.9
+axis predation.refugeCount=0,6,15
+candidate repro.conceiveWhileThirsty=1,predation.vigilancePerNeighbour=0.1
+candidate repro.conceiveWhileThirsty=1,predation.vigilancePerNeighbour=0.3
+candidate repro.conceiveWhileThirsty=1,predation.satiationFraction=0.9,predation.refugeCount=6,predation.vigilancePerNeighbour=0.1
+candidate repro.conceiveWhileThirsty=1,predation.satiationFraction=0.7,predation.refugeCount=15,predation.vigilancePerNeighbour=0.1

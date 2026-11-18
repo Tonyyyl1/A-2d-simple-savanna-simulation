@@ -1,0 +1,5 @@
+# M3 round F17: with E k=3.0, Lion falls to 19-136 on the validation seeds (F16) and Gazelle
+# explodes. Screen Lion strength: huntingSkill scale and the predator conception multiplier.
+base predation.preySizePreference=3.0
+axis predation.lionSkillScale=1.5,2.0,2.5
+axis repro.predatorConceptionMultiplier=4.0,6.0

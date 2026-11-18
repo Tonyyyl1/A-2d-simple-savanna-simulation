@@ -1,0 +1,3 @@
+# M3 round G1: model change G (Cheetah hunts young Zebra), alone and with E k=2-3.
+axis predation.cheetahZebraStage=1,2
+axis predation.preySizePreference=0,2.0,3.0

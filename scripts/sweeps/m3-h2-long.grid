@@ -1,0 +1,6 @@
+# M3 round H2: best H1-screen settings (density response 1.0, Gazelle limit 10) alone and with G / E+G,
+# 5000 steps, seeds 1111/2111, thirst off (G-ECO-1).
+candidate predation.densityResponse=1.0
+candidate predation.densityResponse=1.0,capacity.gazelleOverload=10
+candidate predation.densityResponse=1.0,predation.cheetahZebraStage=1
+candidate predation.densityResponse=1.0,predation.cheetahZebraStage=1,predation.preySizePreference=2.0

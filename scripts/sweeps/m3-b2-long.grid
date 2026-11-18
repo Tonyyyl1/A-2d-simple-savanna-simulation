@@ -1,0 +1,4 @@
+# M3 round B2: top 3 of the B1 screen at 5000 steps, seeds 1111/2111, thirst off and on.
+candidate repro.grassGate=1,repro.grassMin=0.1,repro.grassMax=0.7,repro.grassWindow=1
+candidate repro.grassGate=1,repro.grassMin=0.2,repro.grassMax=0.7,repro.grassWindow=1
+candidate repro.grassGate=1,repro.grassMin=0.2,repro.grassMax=0.7

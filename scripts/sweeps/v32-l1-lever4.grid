@@ -1,0 +1,5 @@
+# v3.2 C-1 lever 4: per-species conspecific overload limits (births fall above this many in the 6-cell window)
+base init.lion=0,init.cheetah=0
+axis capacity.overload.gazelle=0,25,40,60
+axis capacity.overload.zebra=0,12,20
+axis capacity.overload.buffalo=0,10,16

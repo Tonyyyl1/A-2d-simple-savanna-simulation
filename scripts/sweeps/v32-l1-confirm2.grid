@@ -1,0 +1,3 @@
+# v3.2 C-1 confirm 2: two round-4 candidates, 5000 steps, four development seeds
+candidate grass.capacityScale=0.5,grazing.nichePartition=0.4,species.buffalo.breedingProbability=0.048,init.lion=0,init.cheetah=0
+candidate grass.capacityScale=0.5,grazing.nichePartition=0.4,species.buffalo.breedingProbability=0.04,species.zebra.breedingProbability=0.085,init.lion=0,init.cheetah=0

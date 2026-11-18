@@ -1,0 +1,11 @@
+# M3 round 3 (2026-10-21): balance on top of the hydration winner.
+# Evidence: hydration.thirstyThreshold 50 + baseDrain 0.16 keeps thirst on alive on
+# seeds 1111-4111 (balance 13.5-32.6, spans 250-411) and over 5000 steps, but
+# Gazelle booms under thirst and thirst off loses Cheetah at step 2080 over 5000.
+# Chosen over crit20+thirsty60 (worst balance 23.2 but spans 536-841, tiny
+# populations, 5000-step thirst-on extinct): balance gap within seed noise.
+base predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=10,hydration.baseDrain=0.16,hydration.thirstyThreshold=50.0,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0
+axis predation.cheetahSkillScale=1.0,1.2
+axis predation.refugeCount=8,10
+axis repro.herbivoreConceptionMultiplier=1.2,1.5
+axis capacity.preyOverload=15,20

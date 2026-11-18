@@ -1,0 +1,5 @@
+# M3 round W1: waterhole predation modifier. Diagnosis A: with thirst on, 43-58% of Zebra/Buffalo kills
+# happen within 8 cells of water (21% of their time there). Scale hunt success in the zone; 1000-step
+# dev screen on seeds 1111/2111, thirst off and on.
+axis predation.waterZoneRadius=0,4,8
+axis predation.waterZoneSuccess=1.0,0.6,0.3

@@ -1,0 +1,9 @@
+# M3 round 8 (2026-10-21): refine E around the first 5000-step survivor.
+# Evidence (build/m3-sweep-f13): preySizePreference 2.0 keeps all five species
+# alive over 5000 steps thirst off (balance 4.10, span 455), but its 1000-step
+# dev runs are poor (off 28.6/30.7; thirst on Lion falls to 6 -> 548). Lion
+# needs more hunting success once it targets large prey. Run on the four
+# 1000-step dev runs, then 5000 steps seed 1111 thirst off.
+axis predation.preySizePreference=1.5,2.0,2.5
+axis predation.lionSkillScale=1.5,1.8
+axis predation.cheetahSkillScale=1.0,1.2

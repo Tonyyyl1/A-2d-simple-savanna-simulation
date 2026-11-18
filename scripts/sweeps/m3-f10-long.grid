@@ -1,0 +1,9 @@
+# M3 round 4 (2026-10-21): G-ECO-1 (seed 1111, 5000 steps, thirst off) on
+# v3-m3-model-hydration. Evidence: every 1000-step dev/validation run now
+# survives, but over 5000 steps thirst off Cheetah dies at step 2080 while
+# Gazelle is still at 1697 (a predator-prey cycle Cheetah does not recover
+# from). Satiation (B) damps overkill cycles; it was only judged on 1000-step
+# balance before. Run with --steps=5000 --seeds=1111 --thirst=off.
+axis predation.satiationFraction=0,0.8,0.9
+axis predation.refugeCount=8,10,12
+axis predation.cheetahSkillScale=1.0,1.2

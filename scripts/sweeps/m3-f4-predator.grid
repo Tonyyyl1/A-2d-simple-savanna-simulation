@@ -1,0 +1,9 @@
+# M3-1 family 4: predator reproduction and cubs (plan v3.0 §7), on top of
+# the family-3 defaults. Evidence (T3 after families 1-2): seed 1111 5000
+# steps thirst off, Cheetah extinct at step 2257 while Gazelle was at 4862;
+# thirst on, Cheetah extinct first in 2 of 5 runs; M3-0 diag: Cheetah
+# starvation deaths ~ births (1263/1186).
+axis repro.predatorConceptionMultiplier=2,3,4
+axis repro.predatorAdultMargin=0,20
+axis repro.provisionRadius=3,6
+axis social.mateSenseFactor=3,5

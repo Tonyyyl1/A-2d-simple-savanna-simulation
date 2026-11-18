@@ -1,0 +1,4 @@
+# v3.2 C-2 lever 2: Lion hunting strength and fertility, with the 24-cell territory (limit 3) fixed
+base init.cheetah=0,territory.lionRadius=24,territory.lion=3
+axis predation.lionSkillScale=0.6,0.9,1.2,1.5
+axis species.lion.breedingProbability=0.012,0.02,0.038

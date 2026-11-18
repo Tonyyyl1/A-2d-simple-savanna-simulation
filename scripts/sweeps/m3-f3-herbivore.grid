@@ -1,0 +1,9 @@
+# M3-1 family 3: herbivore reproduction and carrying capacity (plan v3.0 §7),
+# on top of the family-2 defaults. Evidence (family 1/2, thirst off): the
+# extreme species are herbivores (seed 2111: Buffalo 3047 vs Gazelle 121;
+# seed 1111: Gazelle 1056 vs Cheetah 85); Gazelle starvation ~ half of its
+# births; hotspot spans 384-816 > 300. Thirst on: Gazelle births too few.
+axis repro.herbivoreConceptionMultiplier=1.5,2.0,3.0
+axis capacity.preyOverload=20,30
+axis capacity.overloadExponent=2,3
+axis grass.capacityScale=0.8,1.0

@@ -1,0 +1,4 @@
+# v3.2 C-3 round 5: Allee effect at low density - mate search heading and a wider mate sense (limit 1, radius 16, default skill and fertility)
+base init.lion=0,territory.cheetah=1,territory.cheetahRadius=16
+axis social.mateSearch=0,1
+axis social.mateSenseFactor=5,8,12

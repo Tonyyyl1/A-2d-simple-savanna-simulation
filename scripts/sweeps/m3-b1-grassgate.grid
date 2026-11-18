@@ -1,0 +1,6 @@
+# M3 round B1: herbivore grass gate (plan docs/PLAN_B_GAZELLE_BIRTH_2026-10-23.zh.md).
+# 1000-step dev screen, seeds 1111/2111, thirst off and on.
+base repro.grassGate=1
+axis repro.grassMin=0.10,0.20,0.30
+axis repro.grassMax=0.45,0.70
+axis repro.grassWindow=1,3

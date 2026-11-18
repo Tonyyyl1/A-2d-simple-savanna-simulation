@@ -1,0 +1,11 @@
+# M3-1 family 5: cohesion and egress (plan v3.0 §7), on top of the family-4
+# defaults. Evidence (family 4 confirmation): thirst-off hotspot spans
+# 242-414 (gate 300) with balance 8.5-13.1; long runs boom and bust.
+# cohesionRadius 0 turns herd cohesion off.
+axis social.cohesionRadius=0,3,6
+axis social.cohesionDistance=2,4
+axis social.predatorExclusionCount=2,3,5
+candidate social.predatorExclusionRadius=4
+candidate social.predatorExclusionRadius=8
+candidate social.predatorExclusionRadius=4,social.cohesionRadius=0
+candidate social.predatorExclusionRadius=8,social.cohesionRadius=0

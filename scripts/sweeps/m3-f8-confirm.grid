@@ -1,0 +1,5 @@
+# M3 hydration confirmation: top 4 of build/m3-sweep-f8, thirst on, validation seeds 3111/4111
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=10,hydration.criticalThreshold=20.0,hydration.thirstyThreshold=60.0,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=10,hydration.baseDrain=0.16,hydration.thirstyThreshold=50.0,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=10,hydration.baseDrain=0.16,hydration.criticalThreshold=20.0,hydration.thirstyThreshold=50.0,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0
+candidate predation.lionSkillScale=1.5,predation.cheetahSkillScale=1.0,predation.refugeCount=10,hydration.baseDrain=0.16,hydration.criticalThreshold=20.0,hydration.thirstyThreshold=60.0,hydration.predatorDrainMultiplier=0.8,repro.conceiveWhileThirsty=1,repro.predatorConceptionMultiplier=4.0

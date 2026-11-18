@@ -1,0 +1,6 @@
+# v3.2 C-1 lever 2: breeding potential of the three herbivores (no predators)
+base init.lion=0,init.cheetah=0
+axis species.gazelle.breedingProbability=0.06,0.09,0.128
+axis species.gazelle.maxLitterSize=1,2
+axis species.zebra.breedingProbability=0.068,0.1
+axis species.buffalo.breedingProbability=0.056,0.085

@@ -1,0 +1,4 @@
+# v3.2 C-1 lever 5: terrain niche partition of grazing
+base init.lion=0,init.cheetah=0
+axis grazing.nichePartition=0.2,0.4,0.6,0.8
+axis grazing.satiationFraction=0,0.75,0.9

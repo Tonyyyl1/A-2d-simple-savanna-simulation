@@ -1,0 +1,5 @@
+# M3 round G2: G stage 1 + E k=2.0 was the best of G1 (seed 1111 alive, balance 17.24;
+# seed 2111 Cheetah extinct @4347). Add Cheetah energy (F) and hunting skill.
+base predation.preySizePreference=2.0,predation.cheetahZebraStage=1
+axis metabolism.cheetah=1.0,0.8,0.65
+axis predation.cheetahSkillScale=1.0,1.3

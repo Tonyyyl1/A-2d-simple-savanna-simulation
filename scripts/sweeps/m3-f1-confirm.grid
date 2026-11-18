@@ -1,0 +1,5 @@
+# M3-1 family 1 confirmation on validation seeds 3111/4111 (not holdout):
+# the top three of build/m3-sweep-f1 plus the default.
+candidate predation.cubVulnerability=1.0,predation.juvenileVulnerability=1.0,predation.lionSkillScale=1.2
+candidate predation.cubVulnerability=1.0,predation.cheetahSkillScale=0.8
+candidate predation.cubVulnerability=1.0,predation.lionSkillScale=1.2,predation.cheetahSkillScale=0.8

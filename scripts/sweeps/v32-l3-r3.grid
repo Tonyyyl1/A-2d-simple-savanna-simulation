@@ -1,0 +1,5 @@
+# v3.2 C-3 round 3: limit 1 / radius 16 survives all four seeds but Cheetah means are 3-105; look for a higher, steadier level
+base init.lion=0,territory.cheetah=1
+axis territory.cheetahRadius=16,20,24
+axis species.cheetah.breedingProbability=0.035,0.058
+axis predation.cheetahSkillScale=0.8,1.0

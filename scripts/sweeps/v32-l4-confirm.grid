@@ -1,0 +1,3 @@
+# v3.2 C-4 confirm: top two round-2 candidates, 5000 steps, four development seeds
+candidate predation.lionSkillScale=1.1,predation.cheetahInterference=1.0,init.lion=100
+candidate predation.lionSkillScale=1.1,init.lion=100

@@ -1,0 +1,4 @@
+# M3 round A1 follow-up: Cheetah territory limit refinement (territory.cheetah=3 was the only A1 setting
+# with a better worst windowed-mean balance than default at 1000 steps). 5000 steps, thirst off only,
+# seeds 1111/2111; the default extinguishes Cheetah at step 2080 (T3).
+axis territory.cheetah=2,3,4

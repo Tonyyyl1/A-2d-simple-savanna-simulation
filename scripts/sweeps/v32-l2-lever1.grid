@@ -1,0 +1,4 @@
+# v3.2 C-2 lever 1: Lion territory (births fall once this many Lions share the window); reduced grid
+base init.cheetah=0
+axis territory.lionRadius=12,20,24
+axis territory.lion=3,5,8

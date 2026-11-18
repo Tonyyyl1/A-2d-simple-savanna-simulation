@@ -1,0 +1,16 @@
+# M3-1 family 1: predation strength (plan v3.0 §7).
+# Evidence (M3-0 --diag, v3-m2-local-capacity-water defaults, 1000 steps):
+# - thirst on, seed 1111: Gazelle extinct at step 451; Cheetah killed 898
+#   Gazelle (171 run-born young), Lion 292 more; seed 2111 extinct at 246.
+# - thirst off: predator-limited. Cheetah 39/7 final with starvation deaths
+#   ~ births (1263/1186); Lion 161/483 with Zebra/Buffalo at 925-4577.
+# So the sweep goes both ways: weaker hunting for thirst on, stronger for off.
+axis predation.cheetahSkillScale=0.8,1.0,1.2
+axis predation.lionSkillScale=0.85,1.0,1.2
+axis predation.cubVulnerability=1.0,1.7
+candidate predation.successCap=0.45
+candidate predation.successCap=0.8,predation.successCapCritical=0.85
+candidate predation.cubVulnerability=1.0,predation.juvenileVulnerability=1.0
+candidate predation.cubVulnerability=1.0,predation.juvenileVulnerability=1.0,predation.lionSkillScale=1.2
+candidate predation.cheetahSkillScale=1.4,predation.lionSkillScale=1.4
+candidate predation.cheetahSkillScale=1.4,predation.lionSkillScale=1.4,predation.cubVulnerability=1.0

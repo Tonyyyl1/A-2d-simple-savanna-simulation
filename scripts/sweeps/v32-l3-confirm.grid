@@ -1,0 +1,4 @@
+# v3.2 C-3 confirm: top three lever candidates, 5000 steps, four development seeds
+candidate predation.cheetahSkillScale=0.8,species.cheetah.breedingProbability=0.035,territory.cheetahRadius=24,territory.cheetah=2,init.lion=0
+candidate territory.cheetahRadius=24,territory.cheetah=2,init.lion=0
+candidate predation.cheetahSkillScale=0.8,species.cheetah.breedingProbability=0.02,territory.cheetahRadius=24,territory.cheetah=2,init.lion=0

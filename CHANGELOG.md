@@ -3,6 +3,318 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
+## Unreleased - v3.2 (plan v3.2, 2026-11-10 onward)
+
+### Added
+
+- Stage A: `TrophicProbe`, `scripts/eco-equivalence.sh`, species life-history
+  constants as `EcologyParameters` keys, windowed means and ln-sd in
+  `ECO_RESULT`; 1000-step runs are about 5x faster (hash quality of `Location`,
+  dense spatial index, primitive heatmap counters).
+- Stage B: real chase movement (`ChasePlanner`, movement limits checked by the
+  position-plan validator, strike reach equal to speed), hunger search
+  direction, starvation grace (`starvation.predatorSteps`), predator adult
+  reserve margin.
+- C-0: target pyramid (`EcologyTargets`), normalised balance gate (`gate=`
+  uses `balanceNorm`, rule `norm-v1`), founders drawn by target count
+  (`init.*`); C-1 levers (default off): `grazing.satiationFraction`,
+  `grazing.nichePartition`, `capacity.overload.*`.
+- 3D track: `SimFrame` export (`FrameSink`), binary frame protocol v1,
+  `SimServer` (127.0.0.1 only), recording/replay (`.savrec`), `TerrainRelief`,
+  and the Three.js client under `src/main/resources/web/` (three.js 0.187.0,
+  MIT, vendored with SHA-256 ledger).
+
+### Changed
+
+- `EcologyRules.VERSION` is `v3.2-c0-pyramid`. Behaviour changes: predators
+  chase along land instead of jumping onto prey, move cost scales with
+  distance, predators wander by habitat-weighted choice, starvation grace is 3
+  steps for herbivores and 12 for predators, founders follow the target pyramid.
+
+## Unreleased - v1.8 PLAN-2.4.1
+
+### Changed
+
+- Replaced the future-route source with
+  `DEVELOPMENT_PLAN_V2_4_1_2026-08-07.zh.md` while preserving the v2.4 plan and
+  its SHA-256 as immutable history.
+- Kept `AllTests full` truthfully at 926/927 FAIL and registered its
+  byte-identical predecessor balance failure as open debt `ECO-LONG-01`.
+  FRAME is structurally verified because the debt has zero semantic difference
+  and no new failure, but the debt is forbidden from semantic candidates,
+  BR1-P2, R3, promotion, holdout, and release.
+- Replaced the assumption that BR1-P2 must solve every long-horizon imbalance
+  with OBS-1A recruitment facts, OBS-1B long-horizon trophic facts, and an
+  ATTR-1 decision-only mechanism gate. Only a unique predator-recruitment
+  result may continue to PRA-1; encounter, prey-capacity, mixed, or unknown
+  results stop for a new plan.
+- Preserved the 12.0 balance gate, default seed/configuration, old failed
+  candidates, policy hashes, `CURRENT_DEV`, ecology parameters, and release
+  artifacts. No implementation or simulation was authorized by this plan
+  revision.
+
+## Unreleased - v1.8 V24-FRAME-1
+
+### Added
+
+- Added immutable `HuntOpportunityFact` and `StepFrameLedger` facts plus a
+  `StepFrameLedgerListener`, with exact S0 capture, S1 pure proposal, S2
+  primary execution, S3 reproduction commit, and S4 publish phases.
+- Added 49 FRAME fixtures for opportunity identity, pure proposal behavior,
+  resource floors, same-step kill isolation, pregnancy/loss ordinals,
+  complete per-actor ledgers, immutability, and observer transparency.
+- Archived expected-red, default/full outputs, manifest delta, two-seed
+  transparency evidence, and a zero-difference inherited-red ledger under
+  `artifacts/history/investigations/v24-frame-1-20260802/`.
+
+### Changed
+
+- Execute HUNT from its frozen S0 opportunity instead of recomputing range
+  after a same-frame stamina debit, and make reproduction selection a pure S1
+  proposal with an atomic S3 commit.
+- Require the production `Simulator` path to publish exactly one immutable S4
+  ledger for every step-start actor while retaining the partial-board resolver
+  as a legacy fixture adapter.
+- Kept the BR1-P policy, ecology parameters, gate thresholds, candidates,
+  `CURRENT_DEV`, holdouts, and releases unchanged.
+
+### Verification
+
+- `V24Frame1Tests` pass 49/49 and default `./test.sh` passes 924/924, including
+  the 318-class production JAR boundary and 319-file runtime equivalence.
+- Seed 1111 and 2111 FRAME transparency runs preserve 8/8 legacy sequences and
+  11/11 profile components with zero duplicate ledgers; allowed differences
+  are only the phase ledger and opportunity fact.
+- `AllTests full` is 926/927. Its sole 5000-step balance red (`32.07`) and all
+  six normalized semantic lines are byte-identical to the accepted
+  CORE-REBASE diagnostic. PLAN-2.4.1 records the red as an open inherited
+  ecological debt not attributable to FRAME; it does not relax the gate or
+  rewrite full as green.
+
+## Unreleased - v1.8 V24-GATE-1
+
+### Added
+
+- Added a single `GateResult` authority for console, JSON, Markdown, failure
+  order, suite banners, and exit status, plus a read-only archived-output
+  parser and fault-seeded result round-trip fixtures.
+- Added versioned CORE, FRAME, and BR1-P2 gate profiles; fail-closed
+  candidate-manifest-v2 validation; a D2 same-frame opportunity ledger; and a
+  Java-AST-based A1b owner/consumer/dependency contract.
+- Added a pure `test-v24-gate-1.sh` verification path and sealed evidence under
+  `artifacts/history/investigations/v24-gate-1-20260802/`.
+
+### Changed
+
+- Replaced the future execution route with a versioned gate, same-frame
+  transaction, full closed-loop observation, PRA-1 calibration, BR1-P2, and
+  R3 requalification sequence.
+- Registered all six BR1-P default-regression failures and corrected the first
+  failure to D2 F03; the old policy and implementation authority are consumed
+  and cannot be reused or tuned.
+- Completed V24-GATE-1 with 74/74 gate assertions and 31/31 A1b kernel/AST
+  assertions. Historical outputs parse as accepted 875/875 and failed
+  1003/1009 with six ordered failures and D2 F03 first.
+- At GATE-1 completion, kept `CURRENT_DEV` on accepted CORE-REBASE and left
+  production code, simulation seeds, candidates, holdouts, releases, and
+  immutable prior evidence unchanged. GATE-1's Simulator, official
+  ecology-gate, and R3 holdout invocation counts were zero; FRAME-1 later
+  received its own independent authority as recorded above.
+
+## Unreleased - v1.8 C1a Hydration Policy Extraction
+
+### Added
+
+- Added immutable `HydrationPolicy` and `WaterNeedProfile` configuration,
+  preserving the W4 thirst defaults without changing behavior.
+- Added an explicit `WaterFoodSecondaryPolicy`; the W4-compatible
+  `LEGACY_EXPLICIT` behavior remains the default after C1d comparison.
+- Added deterministic per-pool shoreline topology, locked seek-cycle targets,
+  arrival-deficit facts, and critical-water destination reservations.
+- Added W3 post-drink departure and cooldown state, plus immutable step-start
+  waterhole congestion facts used for safe target selection.
+- Added deterministic zero-water grace handling: animals at a drinkable shore
+  receive one final drink, while animals off shore die from dehydration.
+
+### Changed
+
+- Recorded C1b/C1c as evidence-gated no-change decisions: calibration and
+  low-hydration breeding restrictions were not triggered by the baseline run.
+- SEEK movement now accepts only strictly target-closer candidates and reports
+  waiting instead of using a general movement fallback.
+- Safe new seek cycles balance path cost against frozen pool load; critical
+  animals continue to prefer the shortest reachable target.
+
+## Unreleased - v1.8 W1 Behavior Outcomes And Rest Semantics
+
+### Added
+
+- Added immutable `BehaviorOutcome`, ordered `ExecutedEffect`, and
+  `MovementDisposition` facts so primary intent, physical movement, executed
+  work, display outcome, and recovery credit remain separately observable.
+- Added explicit `WAIT` behavior and W1 regression coverage for drinking,
+  blocked exits, failed hunts followed by movement, intentional rest, and
+  render-fact preservation.
+- Added the candidate-only `W1MultiSeedStabilityProbe` for fixed terrain,
+  thirst-off ecological protection checks.
+
+### Changed
+
+- Restricted daily rest recovery credit to intentional successful rest;
+  drinking, grazing, waiting, and other stationary effects no longer recover
+  stamina as if they were rest.
+- Updated snapshots, HUD labels, status logs, and interval reports to show
+  outcome facts independently rather than treating the last intent as action.
+- Replaced same-priority `ActionType.ordinal()` resolver ordering with an
+  explicit, testable priority table.
+
+## Unreleased - v1.8 O0b3 Window And Species Heatmaps
+
+### Added
+
+- Added `LAST_100`, `LAST_1000`, and `WHOLE_RUN` selections with actor-species
+  filtering, bounded primitive sparse buckets, and immutable selected-cell facts.
+- Added event/window/species/range/max disclosure plus per-species marker and
+  priority/sampling disclosure in the heatmap HUD.
+
+### Verification
+
+- Candidate `v1.8-o0b3-window-species-heatmap-20260722-dev` passes 429/429
+  tests, runtime identity, core/source hashes, classpath rejection, and the
+  fixed 1,000-step ecology baseline.
+- Snapshot proof passes 27/27, exact window/species proof passes 16/16, and
+  the candidate pressure fixture records a 26.83 ms worst p95 and 28.84 MiB
+  retained heap across LAST_1000 All/DRINK toggles.
+
+## Unreleased - v1.8 O0b2 Frozen Heatmap Snapshots
+
+### Added
+
+- Added immutable same-step `HeatmapSnapshot`, `VisibleRenderFrameFactory`, and
+  pure `HeatmapRenderer` for Whole-run / All-species heatmaps.
+- Added O0b2 snapshot and 3×86,400-cell pressure probes, plus a candidate
+  regression runner.
+
+### Changed
+
+- Swing and fixed PNG heatmap rendering now consume only a `RenderFrame`'s
+  frozen snapshot. The Swing paint path no longer reads the live
+  `EventAccumulator`.
+
+### Verification
+
+- Candidate `v1.8-o0b2-frozen-heatmap-20260722-dev` passes 413/413 tests,
+  runtime identity, core/source hashes, classpath rejection, and the fixed
+  1,000-step ecology baseline.
+- Its headless pressure fixture records a 21.95 ms worst p95 and 35.26 MiB
+  retained-heap delta across All/DRINK selection toggles; the snapshot proof
+  passes 27/27 checks.
+
+## Unreleased - v1.8 O0b1 Frame Event Facts
+
+### Added
+
+- Added immutable `FrameEventSummary` frame facts with producer-defined
+  100-step boundaries, exact event-type × actor-species counts, bounded
+  deterministic representative samples, and explicit sample truncation.
+- Added O(1) `BoundedEventDeque` for best-effort recent-event diagnostics and
+  a standalone O0b1 frame-event regression probe.
+
+### Changed
+
+- `RenderFrame` now carries complete interval facts. Its legacy
+  `eventSummary` compatibility list is only the bounded representative sample;
+  it no longer exposes the last 600 events as if they belonged to one frame.
+
+### Verification
+
+- 386/386 automated tests pass, including reset/non-boundary cadence, listener
+  reconciliation, published-frame immutability, and a dense interval that
+  exceeds both representative and recent-event capacities without losing totals.
+- O0b1 stops before heatmap snapshots, windows, and species selection; ecology
+  behavior and random consumption remain unchanged.
+
+## Unreleased - v1.8 O0a Read-only Water Behaviour Baseline
+
+### Added
+
+- Added immutable post-decision `TransitionObservation` facts and listener
+  registration, stable connected-water `WaterSourceIndex`, deterministic
+  observable-state `SimulationFingerprint`, and `WaterBehaviorRegressionProbe`.
+- Added frozen-seed O0a calibration runner and verifier. The probe reports
+  physical movement separately from display action labels, water proximity,
+  density, shore occupancy, drink exits, events, SEEK classifications, and
+  stepwise identity conservation.
+
+### Verification
+
+- Probe/no-probe step fingerprints and same-seed reruns match. Five calibration
+  1,000-step and three 5,000-step runs retain zero identity-conservation errors.
+- Validation, S1 holdout, and sentinel seed sets remain unrun by design.
+
+## Unreleased - v1.8 R0 Runtime Identity
+
+### Added
+
+- Added stamped `BuildIdentity`, immutable `RenderProvenance`, deterministic
+  `LEGACY_V1` logical-terrain SHA-256 fingerprints, and a core CodeSource /
+  duplicate-resource runtime guard.
+- Added canonical clean build, candidate, verification, launcher, `CURRENT_DEV`,
+  orphan-audit, source-manifest, core-class-hash, and legacy-class archive tools.
+- Added build, short source hash, ecology seed, terrain seed, generator version,
+  and terrain fingerprint to the shared HUD/PNG provenance; HTML and console
+  output retain the full source hash and CodeSource.
+
+### Verification
+
+- 337/337 automated tests and the locked 1,000-step population baseline pass.
+- Candidate/source/core hashes match, orphan audit is zero, root `.class` count
+  is zero, and duplicate-candidate plus old-JAR-first classpaths are rejected.
+
+## Unreleased - v1.7 Behavior Pipeline
+
+### Added
+
+- Added an immutable shared `RenderFrame` manifest consumed by separate
+  `OverviewRenderer` and `InspectRenderer` implementations.
+- Added `RenderSnapshotTool` for fixed-size PNG output through the same
+  ordinary renderer used by the live Swing view.
+- Added `HistoricalEventOverlay` so replay-only events never enter the current
+  living-animal manifest, plus a complete bilingual `EventMetadataRegistry`.
+- Added a deterministic shared-render pipeline probe, shoreline pixel audit,
+  bytecode contract gate, and headless renderer performance diagnostic.
+- Added explicit behavior intents and providers for drinking, seeking water,
+  hunting, grazing, resting, moving, and breeding, plus overview action cues.
+- Added two widely separated small pools: one at the original oasis and one in
+  the southeast, each with independent visual treatment and shoreline access.
+- Added a deterministic two-component terrain test and retained water-safety
+  audits for both shorelines.
+- Added `FieldTransition`, `MovementResolver`, explicit transition outcomes,
+  collision-safe movement and birth reservations, and position-conflict events.
+- Added `DeathCause` and a single death-recording path for age, starvation,
+  dehydration, disease, predation, position conflict, and unknown deaths.
+- Added typed death events plus cumulative cause totals in terminal diagnostics,
+  animal activity details, heatmaps, experiments, and HTML step reports.
+
+### Changed
+
+- `SimulatorView` now receives the simulator's already-published immutable
+  frame; ordinary and inspect rendering no longer traverse mutable `Field`.
+- Ordinary shoreline clipping now clears water-pixel runs after marker drawing,
+  avoiding per-animal one-pixel `Area` construction while retaining zero animal
+  ink on water.
+- `Field.placeAnimal()` no longer silently replaces a living occupant.
+- Nearest free passable fallback selection now uses reachable path distance
+  before deterministic row/column tie-breaking.
+
+### Verification
+
+- 337/337 automated tests pass. The fixed-seed 1,000-step run keeps all five
+  species alive with a final balance ratio of 5.67.
+- Native GUI stress passed 300 paints across five window sizes and both refresh
+  boundaries. The final 1732x948 performance result was p95=25.96 ms,
+  max=28.85 ms and queued-input=29.84 ms.
+
 ## [1.6] - Atomic Overview Frames And Display Fact Audit
 
 ### Added

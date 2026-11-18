@@ -1,0 +1,4 @@
+# v3.2 B-3 small sweep: predator starvation grace x adult reserve margin (seeds 1111,2111; thirst off; 1000 steps)
+base default
+axis starvation.predatorSteps=6,12,24,48
+axis repro.predatorAdultMargin=0,12,24

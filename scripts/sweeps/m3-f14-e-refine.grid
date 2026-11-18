@@ -1,0 +1,4 @@
+# M3 round F14: refine E (predation.preySizePreference) alone. Round F13 showed k=2.0 is the
+# first setting in 32 five-thousand-step runs where Cheetah survives (balance 4.10, span 455);
+# k=1.0 delays extinction to step 3356. Bracket k and test robustness on a second seed.
+axis predation.preySizePreference=1.5,2.0,2.5,3.0,4.0
