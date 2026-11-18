@@ -28,6 +28,8 @@ public class SimulationDiagnostics
                " | Disease=" + snapshot.infected + "(" +
                snapshot.diseasePercent + "%)" +
                " | Avg stamina=" + snapshot.averageStamina + "%" +
+               " | Avg food=" + snapshot.averageFoodSurvival + "%" +
+               " | Avg hydration=" + snapshot.averageHydration + "%" +
                " | Avg survival=" + snapshot.averageSurvival + "%" +
                " | Low survival=" + snapshot.lowSurvival +
                " | Low stamina=" + snapshot.lowStamina +
@@ -49,6 +51,8 @@ public class SimulationDiagnostics
                " | Disease=" + snapshot.infected + "(" +
                snapshot.diseasePercent + "%)" +
                " | Avg stamina=" + snapshot.averageStamina + "%" +
+               " | Avg food=" + snapshot.averageFoodSurvival + "%" +
+               " | Avg hydration=" + snapshot.averageHydration + "%" +
                " | Avg survival=" + snapshot.averageSurvival + "%" +
                " | Low survival=" + snapshot.lowSurvival +
                " | Low stamina=" + snapshot.lowStamina +
@@ -58,7 +62,7 @@ public class SimulationDiagnostics
 
     public static DiagnosticSnapshot capture(Field field, SimulationContext context)
     {
-        DiagnosticStats stats = collect(field);
+        DiagnosticStats stats = collect(field, context);
         int grassPercent = percent(context.getFoodSystem().getAverageFoodLevel() * 100.0);
         int diseasePercent = stats.total == 0 ? 0 :
             percent((stats.infected * 100.0) / stats.total);
@@ -75,6 +79,8 @@ public class SimulationDiagnostics
             stats.lowStamina,
             stats.starving,
             stats.averageStamina(),
+            stats.averageFoodSurvival(),
+            stats.averageHydration(),
             stats.averageSurvival(),
             grassPercent,
             diseasePercent,
@@ -82,7 +88,7 @@ public class SimulationDiagnostics
             speciesCounts(field));
     }
 
-    private static DiagnosticStats collect(Field field)
+    private static DiagnosticStats collect(Field field, SimulationContext context)
     {
         DiagnosticStats stats = new DiagnosticStats();
         for(Animal animal : field.getAnimals()) {
@@ -98,7 +104,8 @@ public class SimulationDiagnostics
                 if(savannahAnimal.isInfected()) {
                     stats.infected++;
                 }
-                if(savannahAnimal.getSurvivalPercent() < 30.0) {
+                SurvivalAssessment assessment = context.assessSurvival(savannahAnimal);
+                if(assessment.isOverallCritical()) {
                     stats.lowSurvival++;
                 }
                 if(savannahAnimal.getStaminaStage() == StaminaStage.LOW) {
@@ -108,7 +115,9 @@ public class SimulationDiagnostics
                     stats.starving++;
                 }
                 stats.totalStamina += savannahAnimal.getStaminaPercent();
-                stats.totalSurvival += savannahAnimal.getSurvivalPercent();
+                stats.totalFoodSurvival += assessment.getFoodSurvivalPercent();
+                stats.totalHydration += assessment.getHydrationSurvivalPercent();
+                stats.totalSurvival += assessment.getOverallSurvivalPercent();
             }
         }
         return stats;
@@ -240,6 +249,8 @@ public class SimulationDiagnostics
         final int lowStamina;
         final int starving;
         final int averageStamina;
+        final int averageFoodSurvival;
+        final int averageHydration;
         final int averageSurvival;
         final int grassPercent;
         final int diseasePercent;
@@ -249,6 +260,7 @@ public class SimulationDiagnostics
         DiagnosticSnapshot(String weather, String time, int total, int predators,
                            int prey, int infected, int lowSurvival,
                            int lowStamina, int starving, int averageStamina,
+                           int averageFoodSurvival, int averageHydration,
                            int averageSurvival, int grassPercent,
                            int diseasePercent, int predatorPreyRatio,
                            Map<String, Integer> speciesCounts)
@@ -263,6 +275,8 @@ public class SimulationDiagnostics
             this.lowStamina = lowStamina;
             this.starving = starving;
             this.averageStamina = averageStamina;
+            this.averageFoodSurvival = averageFoodSurvival;
+            this.averageHydration = averageHydration;
             this.averageSurvival = averageSurvival;
             this.grassPercent = grassPercent;
             this.diseasePercent = diseasePercent;
@@ -281,6 +295,8 @@ public class SimulationDiagnostics
         int lowStamina;
         int starving;
         double totalStamina;
+        double totalFoodSurvival;
+        double totalHydration;
         double totalSurvival;
 
         int averageStamina()
@@ -291,6 +307,16 @@ public class SimulationDiagnostics
         int averageSurvival()
         {
             return total == 0 ? 0 : (int)Math.round(totalSurvival / total);
+        }
+
+        int averageFoodSurvival()
+        {
+            return total == 0 ? 0 : (int)Math.round(totalFoodSurvival / total);
+        }
+
+        int averageHydration()
+        {
+            return total == 0 ? 0 : (int)Math.round(totalHydration / total);
         }
     }
 }

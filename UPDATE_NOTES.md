@@ -1,5 +1,20 @@
 # Update Notes
 
+## v1.6 work started
+
+- `ThirstBehaviorProbe.java` is now the repeatable thirst observability probe;
+  it is diagnostic-only and does not add random calls to the production loop.
+- `SafeMarkerPlacement.java` and the terrain-aware `FieldRenderer` preserve
+  visible shoreline animals while clipping their painted footprint to land.
+- `WaterSafetyProbe` now checks shoreline marker visibility in addition to zero
+  water pixels. Release version remains 1.5 during this staged implementation.
+- Added `SurvivalAssessment`, `SurvivalSystem`, and
+  `SavannahSurvivalSystem`; diagnostics and reports now distinguish food,
+  hydration, and overall survival while thirst-off behavior remains compatible.
+- Added three-stage hydration assessment and water-priority movement, plus
+  current-only inspect actors, drink scenes, interval drink counts, and
+  stronger drink heatmap rendering.
+
 ## Summary
 
 This working update now also includes the shared ordinary-field renderer,
@@ -207,6 +222,17 @@ of the previous repeated-200k workflow.
   users.
 - `package.bluej` now includes `FieldRenderer`, `ThirstSystem`, and
   `SavannahThirstSystem`, so they appear in BlueJ.
+
+## Post-1.5 Development Planning
+
+`DEVELOPMENT_PLAN.zh.md` is now the canonical post-1.5 development plan. It
+records the measured thirst-visibility problem, the agreed split between food,
+hydration, and overall survival values, staged v1.6/v1.7 architecture work,
+verification gates, and a copy-ready Chinese handoff for the next window.
+
+This is planning documentation only. The current release and packaged
+artifacts remain `v1.5-renderer-status-thirst`; no v1.6 code or package is
+claimed by this note.
 
 ## Updated Deliverables
 

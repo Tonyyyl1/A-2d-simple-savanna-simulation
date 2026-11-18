@@ -14,10 +14,13 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -32,6 +35,7 @@ import javax.swing.Icon;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
@@ -65,12 +69,35 @@ public class SimulatorView extends JFrame
     private List<SimulationEvent> lastEvents;
     private List<SceneDirector.Scene> storyboard;
     private List<SceneDirector.SceneActor> ambientActors;
+    private DisplayFactAudit latestFactAudit;
     private int sceneIndex;
     private long sceneStartNanos;
     private long ambientStartNanos;
     private Timer sceneTimer;
     private boolean inspectMode;
     private boolean pauseBeforeInspect;
+
+    /**
+     * Creates the Swing view on the EDT. The simulator is normally created on
+     * its own thread, so construction itself must not leak Swing mutations to
+     * that thread.
+     */
+    public static SimulatorView createOnEventDispatchThread(final int height,
+                                                            final int width,
+                                                            final String configSummary)
+    {
+        if(SwingUtilities.isEventDispatchThread()) {
+            return new SimulatorView(height, width, configSummary);
+        }
+        final SimulatorView[] result = new SimulatorView[1];
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                result[0] = new SimulatorView(height, width, configSummary);
+            }
+        });
+        return result[0];
+    }
 
     public SimulatorView(int height, int width)
     {
@@ -79,6 +106,7 @@ public class SimulatorView extends JFrame
 
     public SimulatorView(int height, int width, String configSummary)
     {
+        requireEdt("construct SimulatorView");
         stats = new FieldStats();
         interactionController = new ViewInteractionController();
         iconSet = new AnimalIconSet();
@@ -122,6 +150,16 @@ public class SimulatorView extends JFrame
         });
 
         fieldView = new FieldView(height, width);
+        fieldView.addComponentListener(new ComponentAdapter() {
+            public void componentResized(ComponentEvent event)
+            {
+                fieldView.updateTargetSize();
+                if(inspectMode) {
+                    rebuildStoryboard();
+                }
+                fieldView.repaint();
+            }
+        });
         interactionController.addViewportChangeListener(
             new ViewInteractionController.ViewportChangeListener() {
                 public void viewportChanged()
@@ -171,7 +209,6 @@ public class SimulatorView extends JFrame
         heatmapTypeSelector.addActionListener(event -> updateHeatmapControls());
         updateHeatmapControls();
         pack();
-        setVisible(true);
     }
 
     /**
@@ -179,12 +216,24 @@ public class SimulatorView extends JFrame
      */
     public void setControlHandler(SimulationControlHandler controlHandler)
     {
-        this.controlHandler = controlHandler;
+        final SimulationControlHandler handler = controlHandler;
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                SimulatorView.this.controlHandler = handler;
+            }
+        });
     }
 
     public void setEventAccumulator(EventAccumulator accumulator)
     {
-        fieldView.setEventAccumulator(accumulator);
+        final EventAccumulator requested = accumulator;
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                fieldView.setEventAccumulator(requested);
+            }
+        });
     }
 
     /**
@@ -192,7 +241,13 @@ public class SimulatorView extends JFrame
      */
     public void setPaused(boolean paused)
     {
-        pauseButton.setText(paused ? "Resume" : "Pause");
+        final boolean requested = paused;
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                pauseButton.setText(requested ? "Resume" : "Pause");
+            }
+        });
     }
 
     /**
@@ -200,10 +255,15 @@ public class SimulatorView extends JFrame
      */
     public void setStopping()
     {
-        pauseButton.setEnabled(false);
-        stopButton.setEnabled(false);
-        stopButton.setText("Stopping...");
-        stopSceneTimer();
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                pauseButton.setEnabled(false);
+                stopButton.setEnabled(false);
+                stopButton.setText("Stopping...");
+                stopSceneTimer();
+            }
+        });
     }
 
     /**
@@ -219,63 +279,92 @@ public class SimulatorView extends JFrame
      */
     public void showStatus(int step, Field field, SimulationContext context)
     {
-        if(!isVisible()) {
-            setVisible(true);
+        final int requestedStep = step;
+        final Field requestedField = field;
+        final SimulationContext requestedContext = context;
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                showStatusOnEdt(requestedStep, requestedField, requestedContext);
+            }
+        });
+    }
+
+    /**
+     * Builds the whole ordinary layer on the EDT while the caller is waiting,
+     * then swaps one completed frame reference. A build failure deliberately
+     * leaves the previous front frame and labels intact.
+     */
+    private void showStatusOnEdt(int step, Field field, SimulationContext context)
+    {
+        requireEdt("build an overview frame");
+        if(field == null) {
+            return;
+        }
+
+        List<SimulationEvent> events = context == null ? Collections.emptyList() :
+            new ArrayList<>(context.getRecentEvents());
+        SimulationDiagnostics.DiagnosticSnapshot currentSnapshot = context == null ?
+            null : SimulationDiagnostics.capture(field, context);
+        SimulationDiagnostics.DiagnosticSnapshot comparisonSnapshot = step == 0 ?
+            null : previousSnapshot;
+        FieldStats completedStats = new FieldStats();
+        FieldView.OverviewBuildResult build = fieldView.buildAndCommit(step, field, context,
+            completedStats, currentSnapshot, comparisonSnapshot);
+        if(build == null) {
+            return;
         }
 
         lastField = field;
         lastContext = context;
-        lastEvents = context == null ? Collections.emptyList() :
-            new ArrayList<>(context.getRecentEvents());
-
+        lastEvents = events;
+        latestFactAudit = build.audit;
+        if(currentSnapshot != null) {
+            previousSnapshot = currentSnapshot;
+        }
         stepLabel.setText(STEP_PREFIX + step);
         if(context != null) {
             environment.setIcon(new SwatchIcon(context.getWeatherSystem()
                                                      .getCurrentWeather().getColor()));
             environment.setText(" " + context.getEnvironmentSummary(field));
         }
-
-        stats.reset();
-        TerrainMap terrainMap = context == null ? null : context.getTerrainMap();
-        fieldView.preparePaint(terrainMap);
-        fieldView.drawPopulationPressure(field);
-
-        for(int row = 0; row < field.getDepth(); row++) {
-            for(int col = 0; col < field.getWidth(); col++) {
-                Location location = new Location(row, col);
-                Animal animal = field.getAnimalAt(location);
-                if(animal != null && animal.isAlive()) {
-                    if(terrainMap != null && !terrainMap.isPassable(location)) {
-                        continue;
-                    }
-                    stats.incrementCount(animal);
-                    if(animal instanceof SavannahAnimal) {
-                        SavannahAnimal savannahAnimal = (SavannahAnimal)animal;
-                        if(fieldView.shouldDrawAnimal(col, row, savannahAnimal) &&
-                           fieldView.canDrawOrdinaryAnimal(location,
-                                                           savannahAnimal)) {
-                            fieldView.drawAnimal(col, row, savannahAnimal);
-                        }
-                    }
-                    else {
-                        fieldView.drawMark(col, row, UNKNOWN_COLOR);
-                    }
-                }
-            }
-        }
-        stats.countFinished();
-        if(context != null) {
-            SimulationDiagnostics.DiagnosticSnapshot currentSnapshot =
-                SimulationDiagnostics.capture(field, context);
-            SimulationDiagnostics.DiagnosticSnapshot comparisonSnapshot =
-                step == 0 ? null : previousSnapshot;
-            fieldView.drawSystemOverlay(context, currentSnapshot,
-                                        comparisonSnapshot);
-            previousSnapshot = currentSnapshot;
-        }
-
-        population.setText(POPULATION_PREFIX + stats.getPopulationDetails(field));
+        population.setText(POPULATION_PREFIX + build.populationText);
         fieldView.repaint();
+        if(!isVisible()) {
+            setVisible(true);
+        }
+    }
+
+    private static void runOnEdtAndWait(Runnable action)
+    {
+        if(SwingUtilities.isEventDispatchThread()) {
+            action.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(action);
+        }
+        catch(InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for the EDT.", e);
+        }
+        catch(InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if(cause instanceof RuntimeException) {
+                throw (RuntimeException)cause;
+            }
+            if(cause instanceof Error) {
+                throw (Error)cause;
+            }
+            throw new IllegalStateException("EDT action failed.", cause);
+        }
+    }
+
+    private static void requireEdt(String action)
+    {
+        if(!SwingUtilities.isEventDispatchThread()) {
+            throw new IllegalStateException("The EDT must " + action + ".");
+        }
     }
 
     /**
@@ -368,6 +457,7 @@ public class SimulatorView extends JFrame
         ambientActors = SceneDirector.buildBehaviorActors(lastEvents, lastField,
                                                           lastContext.getTerrainMap(),
                                                           viewport);
+        refreshInspectFactAudit(viewport);
         sceneIndex = 0;
         sceneStartNanos = System.nanoTime();
         ambientStartNanos = sceneStartNanos;
@@ -378,6 +468,49 @@ public class SimulatorView extends JFrame
             sceneTimer().restart();
         }
         fieldView.repaint();
+    }
+
+    /**
+     * Updates an audit-only immutable sidecar. It neither feeds a renderer nor
+     * alters the field, random stream, timers, or current display frame.
+     */
+    private void refreshInspectFactAudit(Rectangle viewport)
+    {
+        if(latestFactAudit == null) {
+            return;
+        }
+        List<SceneDirector.SceneActor> visibleActors = new ArrayList<>();
+        Set<Long> activeIds = new HashSet<>();
+        for(SceneDirector.Scene scene : storyboard) {
+            for(SceneDirector.SceneActor actor : scene.actors) {
+                visibleActors.add(actor);
+                activeIds.add(actor.animalId);
+            }
+        }
+        for(SceneDirector.SceneActor actor : ambientActors) {
+            if(!activeIds.contains(actor.animalId)) {
+                visibleActors.add(actor);
+            }
+        }
+        List<DisplayFactAudit.AnimalFact> facts =
+            DisplayFactAudit.captureFieldFacts(lastField, viewport);
+        latestFactAudit = new DisplayFactAudit(latestFactAudit.getStep(),
+            latestFactAudit.getGeneration(), viewport, facts,
+            new ArrayList<>(facts),
+            DisplayFactAudit.captureInspectActorInputs(lastField, visibleActors));
+    }
+
+    /** Returns the latest immutable B3 sidecar without changing the display. */
+    public DisplayFactAudit getLatestFactAudit()
+    {
+        final DisplayFactAudit[] result = new DisplayFactAudit[1];
+        runOnEdtAndWait(new Runnable() {
+            public void run()
+            {
+                result[0] = latestFactAudit;
+            }
+        });
+        return result[0];
     }
 
     private Timer sceneTimer()
@@ -499,21 +632,27 @@ public class SimulatorView extends JFrame
         private TerrainMap terrainMap;
         private VisualGridGeometry geometry;
         private VisualWaterMask visualWaterMask;
-        private BufferedImage terrainImage;
-        private BufferedImage animalImage;
-        private Graphics2D animalGraphics;
+        private final OverviewFrameBuffer frameBuffer;
+        private BufferedImage cachedTerrainImage;
+        private TerrainMap cachedTerrainMap;
+        private Dimension cachedTerrainSize;
+        private long resizeGeneration;
         private EventAccumulator eventAccumulator;
         private boolean heatmapVisible;
         private SimulationEvent.EventType heatmapEventType;
         private int aggregateColumns;
         private int aggregateRows;
         private int[][] aggregatePopulation;
-
         public FieldView(int height, int width)
         {
             gridHeight = height;
             gridWidth = width;
             size = new Dimension(0, 0);
+            frameBuffer = new OverviewFrameBuffer();
+            cachedTerrainImage = null;
+            cachedTerrainMap = null;
+            cachedTerrainSize = new Dimension(0, 0);
+            resizeGeneration = 0L;
             heatmapVisible = false;
             heatmapEventType = null;
         }
@@ -559,52 +698,183 @@ public class SimulatorView extends JFrame
             heatmapEventType = type;
         }
 
-        public void preparePaint(TerrainMap currentTerrainMap)
+        /**
+         * Records a new target size but never rebuilds from Field here. Until
+         * the next simulation refresh commits a completed frame, paint scales
+         * the previous completed frame.
+         */
+        public void updateTargetSize()
         {
-            Dimension currentSize = getSize();
-            if(currentSize.width <= 0 || currentSize.height <= 0) {
-                currentSize = getPreferredSize();
-            }
-
-            boolean sizeChanged = !size.equals(currentSize);
-            boolean terrainChanged = terrainMap != currentTerrainMap;
-
-            if(sizeChanged) {
-                size = new Dimension(currentSize);
+            requireEdt("update overview size");
+            Dimension target = targetSize();
+            if(!size.equals(target)) {
+                size = new Dimension(target);
                 geometry = new VisualGridGeometry(gridHeight, gridWidth,
                                                   size.width, size.height);
-                animalImage = new BufferedImage(size.width, size.height,
-                                                BufferedImage.TYPE_INT_ARGB);
-                if(animalGraphics != null) {
-                    animalGraphics.dispose();
-                }
-                animalGraphics = animalImage.createGraphics();
-                animalGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                                                RenderingHints.VALUE_ANTIALIAS_ON);
+                resizeGeneration++;
             }
+        }
 
-            if(sizeChanged || terrainChanged || terrainImage == null) {
-                terrainMap = currentTerrainMap;
-                if(geometry == null) {
-                    geometry = new VisualGridGeometry(gridHeight, gridWidth,
-                                                      size.width, size.height);
+        /**
+         * Constructs the normal layer privately and replaces the front frame
+         * only after terrain, markers and the system overlay are all present.
+         * Returning null means the old complete frame remains authoritative.
+         */
+        public OverviewBuildResult buildAndCommit(int step, Field field,
+                                     SimulationContext context,
+                                     FieldStats completedStats,
+                                     SimulationDiagnostics.DiagnosticSnapshot snapshot,
+                                     SimulationDiagnostics.DiagnosticSnapshot previous)
+        {
+            requireEdt("build and commit an overview frame");
+            updateTargetSize();
+            Dimension target = new Dimension(size);
+            long generation = resizeGeneration;
+            TerrainMap currentTerrainMap = context == null ? null :
+                context.getTerrainMap();
+            VisualGridGeometry frameGeometry = new VisualGridGeometry(
+                gridHeight, gridWidth, target.width, target.height);
+            VisualWaterMask frameWaterMask = currentTerrainMap == null ? null :
+                new VisualWaterMask(currentTerrainMap, target.width, target.height);
+            OverviewFrameBuffer.WritableFrame writable = null;
+            Rectangle overviewViewport = new Rectangle(0, 0, field.getWidth(),
+                                                        field.getDepth());
+            List<DisplayFactAudit.AnimalFact> fieldFacts = new ArrayList<>();
+            List<DisplayFactAudit.AnimalFact> ordinaryMarkerInputs =
+                new ArrayList<>();
+            try {
+                writable = frameBuffer.beginFrame(generation, step, target.width,
+                    target.height, terrainImageFor(currentTerrainMap, target),
+                    currentTerrainMap, frameGeometry, frameWaterMask);
+                Graphics2D graphics = writable.graphics();
+                drawPopulationPressure(field);
+                int drawnAnimalCount = 0;
+                for(int row = 0; row < field.getDepth(); row++) {
+                    for(int col = 0; col < field.getWidth(); col++) {
+                        Location location = new Location(row, col);
+                        Animal animal = field.getAnimalAt(location);
+                        if(animal == null || !animal.isAlive()) {
+                            continue;
+                        }
+                        if(animal instanceof SavannahAnimal &&
+                           overviewViewport.contains(col, row)) {
+                            fieldFacts.add(DisplayFactAudit.factFor(
+                                (SavannahAnimal)animal));
+                        }
+                        if(currentTerrainMap != null &&
+                           !currentTerrainMap.isPassable(location)) {
+                            continue;
+                        }
+                        completedStats.incrementCount(animal);
+                        if(animal instanceof SavannahAnimal) {
+                            SavannahAnimal savannahAnimal =
+                                (SavannahAnimal)animal;
+                            // This is the marker input boundary. Later LOD and
+                            // shoreline policy can skip pixels, but cannot turn
+                            // a historical/dead actor into a marker candidate.
+                            ordinaryMarkerInputs.add(DisplayFactAudit.factFor(
+                                savannahAnimal));
+                            if(shouldDrawAnimal(col, row, savannahAnimal) &&
+                               canDrawOrdinaryAnimal(location, savannahAnimal,
+                                                     frameWaterMask)) {
+                                fieldRenderer.drawAnimal(graphics, location,
+                                    savannahAnimal, frameGeometry,
+                                    currentTerrainMap, context == null ? null :
+                                    context.assessSurvival(savannahAnimal));
+                                drawnAnimalCount++;
+                            }
+                        }
+                        else {
+                            fieldRenderer.drawUnknownMark(graphics, row, col,
+                                                         frameGeometry);
+                            drawnAnimalCount++;
+                        }
+                    }
                 }
-                visualWaterMask = terrainMap == null ? null :
-                    new VisualWaterMask(terrainMap, size.width, size.height);
-                terrainImage = new BufferedImage(size.width, size.height,
-                                                 BufferedImage.TYPE_INT_ARGB);
-                Graphics2D terrainGraphics = terrainImage.createGraphics();
-                if(terrainMap != null) {
-                    terrainMap.drawBackground(terrainGraphics, size.width, size.height);
+                completedStats.countFinished();
+                if(context != null && snapshot != null) {
+                    drawSystemOverlay(graphics, target, context, snapshot, previous);
+                }
+
+                if(generation != resizeGeneration) {
+                    writable.abort();
+                    return null;
+                }
+                OverviewFrameBuffer.CompletedFrame completed =
+                    writable.complete(drawnAnimalCount, true);
+                if(generation != resizeGeneration) {
+                    return null;
+                }
+                frameBuffer.commit(completed);
+                terrainMap = currentTerrainMap;
+                geometry = frameGeometry;
+                visualWaterMask = frameWaterMask;
+                DisplayFactAudit audit = new DisplayFactAudit(step,
+                    completed.getGeneration(), overviewViewport, fieldFacts,
+                    ordinaryMarkerInputs, Collections.emptyList());
+                return new OverviewBuildResult(
+                    completedStats.getPopulationDetails(field), audit);
+            }
+            catch(RuntimeException e) {
+                if(writable != null) {
+                    writable.abort();
+                }
+                System.err.println("Overview frame build failed; retaining the " +
+                                   "previous completed frame: " + e.getMessage());
+                return null;
+            }
+        }
+
+        private final class OverviewBuildResult
+        {
+            private final String populationText;
+            private final DisplayFactAudit audit;
+
+            private OverviewBuildResult(String populationText,
+                                        DisplayFactAudit audit)
+            {
+                this.populationText = populationText;
+                this.audit = audit;
+            }
+        }
+
+        private Dimension targetSize()
+        {
+            Dimension current = getSize();
+            if(current.width <= 0 || current.height <= 0) {
+                current = getPreferredSize();
+            }
+            return new Dimension(Math.max(1, current.width),
+                                 Math.max(1, current.height));
+        }
+
+        private BufferedImage terrainImageFor(TerrainMap currentTerrainMap,
+                                              Dimension target)
+        {
+            if(cachedTerrainImage != null && cachedTerrainMap == currentTerrainMap &&
+               cachedTerrainSize.equals(target)) {
+                return cachedTerrainImage;
+            }
+            BufferedImage terrain = new BufferedImage(target.width, target.height,
+                                                       BufferedImage.TYPE_INT_ARGB);
+            Graphics2D terrainGraphics = terrain.createGraphics();
+            try {
+                if(currentTerrainMap != null) {
+                    currentTerrainMap.drawBackground(terrainGraphics, target.width,
+                                                     target.height);
                 }
                 else {
                     terrainGraphics.setColor(TerrainType.OPEN_PLAIN.getColor());
-                    terrainGraphics.fillRect(0, 0, size.width, size.height);
+                    terrainGraphics.fillRect(0, 0, target.width, target.height);
                 }
+            }
+            finally {
                 terrainGraphics.dispose();
             }
-
-            clearAnimalLayer();
+            cachedTerrainImage = terrain;
+            cachedTerrainMap = currentTerrainMap;
+            cachedTerrainSize = new Dimension(target);
+            return terrain;
         }
 
         public void drawPopulationPressure(Field field)
@@ -632,6 +902,7 @@ public class SimulatorView extends JFrame
                 aggregatePopulation[aggregateRow(y)][aggregateColumn(x)];
             if(population <= 5 || animal.getProfile().isPredator() ||
                animal.isInfected() || animal.isSurvivalCritical() ||
+               animal.isThirsty() ||
                animal.getStaminaStage() == StaminaStage.LOW) {
                 return true;
             }
@@ -640,27 +911,17 @@ public class SimulatorView extends JFrame
         }
 
         public boolean canDrawOrdinaryAnimal(Location location,
-                                             SavannahAnimal animal)
+                                             SavannahAnimal animal,
+                                             VisualWaterMask frameWaterMask)
         {
-            return visualWaterMask == null ||
-                   !visualWaterMask.ordinaryAnimalFootprintTouchesWater(location,
-                                                                        animal);
+            return frameWaterMask == null ||
+                   SafeMarkerPlacement.hasVisibleLandPixel(location, animal,
+                       frameWaterMask.getGeometry(), frameWaterMask.getTerrain());
         }
 
         public boolean canDrawOrdinaryAnimal(Location location)
         {
-            return canDrawOrdinaryAnimal(location, null);
-        }
-
-        public void drawMark(int x, int y, Color color)
-        {
-            fieldRenderer.drawUnknownMark(animalGraphics, y, x, geometry);
-        }
-
-        public void drawAnimal(int x, int y, SavannahAnimal animal)
-        {
-            fieldRenderer.drawAnimal(animalGraphics, new Location(y, x),
-                                     animal, geometry);
+            return canDrawOrdinaryAnimal(location, null, visualWaterMask);
         }
 
         private int aggregateRow(int row)
@@ -681,15 +942,17 @@ public class SimulatorView extends JFrame
                                         col / AGGREGATE_CELL_SIZE));
         }
 
-        public void drawSystemOverlay(SimulationContext context,
+        public void drawSystemOverlay(Graphics2D graphics, Dimension target,
+                                      SimulationContext context,
                                       SimulationDiagnostics.DiagnosticSnapshot snapshot,
                                       SimulationDiagnostics.DiagnosticSnapshot previous)
         {
-            drawWeatherAndTimeOverlay(context);
-            drawMetricPanel(context, snapshot, previous);
+            drawWeatherAndTimeOverlay(graphics, target, context);
+            drawMetricPanel(graphics, target, context, snapshot, previous);
         }
 
-        private void drawWeatherAndTimeOverlay(SimulationContext context)
+        private void drawWeatherAndTimeOverlay(Graphics2D graphics, Dimension target,
+                                               SimulationContext context)
         {
             WeatherType weather = context.getWeatherSystem().getCurrentWeather();
             Color tint;
@@ -705,125 +968,133 @@ public class SimulatorView extends JFrame
             else {
                 tint = new Color(255, 241, 174, 20);
             }
-            animalGraphics.setColor(tint);
-            animalGraphics.fillRect(0, 0, size.width, size.height);
+            graphics.setColor(tint);
+            graphics.fillRect(0, 0, target.width, target.height);
 
             DayPhase phase = context.getClock().getPhase();
             if(phase == DayPhase.NIGHT) {
-                animalGraphics.setColor(new Color(19, 32, 62, 82));
-                animalGraphics.fillRect(0, 0, size.width, size.height);
+                graphics.setColor(new Color(19, 32, 62, 82));
+                graphics.fillRect(0, 0, target.width, target.height);
             }
             else if(phase == DayPhase.DAWN || phase == DayPhase.DUSK) {
-                animalGraphics.setColor(new Color(232, 122, 54, 42));
-                animalGraphics.fillRect(0, 0, size.width, size.height);
+                graphics.setColor(new Color(232, 122, 54, 42));
+                graphics.fillRect(0, 0, target.width, target.height);
             }
         }
 
-        private void drawMetricPanel(SimulationContext context,
+        private void drawMetricPanel(Graphics2D graphics, Dimension target,
+                                     SimulationContext context,
                                      SimulationDiagnostics.DiagnosticSnapshot snapshot,
                                      SimulationDiagnostics.DiagnosticSnapshot previous)
         {
-            int panelWidth = Math.min(Math.max(230, size.width / 3), 330);
+            int panelWidth = Math.min(Math.max(230, target.width / 3), 330);
             int panelHeight = 134;
             int left = 8;
             int top = 8;
-            animalGraphics.setColor(new Color(255, 249, 225, 205));
-            animalGraphics.fillRoundRect(left, top, panelWidth, panelHeight, 8, 8);
-            animalGraphics.setColor(new Color(70, 57, 37, 150));
-            animalGraphics.drawRoundRect(left, top, panelWidth, panelHeight, 8, 8);
+            graphics.setColor(new Color(255, 249, 225, 205));
+            graphics.fillRoundRect(left, top, panelWidth, panelHeight, 8, 8);
+            graphics.setColor(new Color(70, 57, 37, 150));
+            graphics.drawRoundRect(left, top, panelWidth, panelHeight, 8, 8);
 
-            Font oldFont = animalGraphics.getFont();
-            animalGraphics.setFont(oldFont.deriveFont(Font.BOLD, 12.0f));
-            animalGraphics.setColor(new Color(45, 37, 28));
-            animalGraphics.drawString("Step " + context.getStep() + "  " +
+            Font oldFont = graphics.getFont();
+            graphics.setFont(oldFont.deriveFont(Font.BOLD, 12.0f));
+            graphics.setColor(new Color(45, 37, 28));
+            graphics.drawString("Step " + context.getStep() + "  " +
                                       context.getClock().getDisplayText(),
                                       left + 10, top + 18);
 
-            animalGraphics.setFont(oldFont.deriveFont(11.0f));
-            drawMetricBar(left + 10, top + 32, panelWidth - 20, "Grass",
+            graphics.setFont(oldFont.deriveFont(11.0f));
+            drawMetricBar(graphics, left + 10, top + 32, panelWidth - 20, "Grass",
                           snapshot.grassPercent,
                           new Color(94, 151, 62));
-            drawMetricBar(left + 10, top + 48, panelWidth - 20, "Disease",
+            drawMetricBar(graphics, left + 10, top + 48, panelWidth - 20, "Disease",
                           snapshot.diseasePercent,
                           INFECTED_COLOR);
-            drawMetricBar(left + 10, top + 64, panelWidth - 20, "Survival",
+            drawMetricBar(graphics, left + 10, top + 64, panelWidth - 20, "Survival",
                           snapshot.averageSurvival,
                           new Color(72, 137, 190));
-            drawMetricBar(left + 10, top + 80, panelWidth - 20, "Stamina",
+            drawMetricBar(graphics, left + 10, top + 80, panelWidth - 20, "Stamina",
                           snapshot.averageStamina,
                           new Color(222, 178, 53));
 
-            animalGraphics.setColor(new Color(45, 37, 28));
-            drawFittedString("Signals: " +
+            graphics.setColor(new Color(45, 37, 28));
+            drawFittedString(graphics, "Signals: " +
                              SimulationDiagnostics.formatSignals(snapshot),
                              left + 10, top + 104, panelWidth - 20);
-            drawFittedString(SimulationDiagnostics.formatShortTrend(snapshot, previous),
+            drawFittedString(graphics,
+                             SimulationDiagnostics.formatShortTrend(snapshot, previous),
                              left + 10, top + 120, panelWidth - 20);
 
-            animalGraphics.setFont(oldFont);
+            graphics.setFont(oldFont);
         }
 
-        private void drawMetricBar(int left, int top, int width, String label,
+        private void drawMetricBar(Graphics2D graphics, int left, int top,
+                                   int width, String label,
                                    int percent, Color color)
         {
             int labelWidth = 54;
             int barWidth = width - labelWidth - 34;
-            FontMetrics metrics = animalGraphics.getFontMetrics();
-            animalGraphics.setColor(new Color(45, 37, 28));
-            animalGraphics.drawString(label, left, top + 9);
-            animalGraphics.setColor(new Color(64, 58, 45, 62));
-            animalGraphics.fillRoundRect(left + labelWidth, top, barWidth, 10, 5, 5);
-            animalGraphics.setColor(color);
-            animalGraphics.fillRoundRect(left + labelWidth, top,
+            FontMetrics metrics = graphics.getFontMetrics();
+            graphics.setColor(new Color(45, 37, 28));
+            graphics.drawString(label, left, top + 9);
+            graphics.setColor(new Color(64, 58, 45, 62));
+            graphics.fillRoundRect(left + labelWidth, top, barWidth, 10, 5, 5);
+            graphics.setColor(color);
+            graphics.fillRoundRect(left + labelWidth, top,
                 Math.max(1, (barWidth * Math.min(100, percent)) / 100), 10, 5, 5);
             String value = percent + "%";
-            animalGraphics.setColor(new Color(45, 37, 28));
-            animalGraphics.drawString(value, left + width - metrics.stringWidth(value),
+            graphics.setColor(new Color(45, 37, 28));
+            graphics.drawString(value, left + width - metrics.stringWidth(value),
                                       top + 9);
         }
 
-        private void drawFittedString(String text, int x, int baseline,
+        private void drawFittedString(Graphics2D graphics, String text,
+                                      int x, int baseline,
                                       int maxWidth)
         {
-            FontMetrics metrics = animalGraphics.getFontMetrics();
+            FontMetrics metrics = graphics.getFontMetrics();
             String fitted = text;
             while(fitted.length() > 3 && metrics.stringWidth(fitted) > maxWidth) {
                 fitted = fitted.substring(0, fitted.length() - 4) + "...";
             }
-            animalGraphics.drawString(fitted, x, baseline);
+            graphics.drawString(fitted, x, baseline);
         }
 
         public void paintComponent(Graphics graphics)
         {
             super.paintComponent(graphics);
-            if(terrainImage != null) {
-                Dimension currentSize = getSize();
-                Graphics2D g2 = (Graphics2D)graphics.create();
-                interactionController.getTransform().apply(g2);
-                int drawWidth = size.equals(currentSize) ? size.width :
-                    currentSize.width;
-                int drawHeight = size.equals(currentSize) ? size.height :
-                    currentSize.height;
-                g2.drawImage(terrainImage, 0, 0, drawWidth, drawHeight, null);
-                drawHeatmapOverlay(g2);
-                if(!inspectMode) {
-                    g2.drawImage(animalImage, 0, 0, drawWidth, drawHeight, null);
-                }
-                g2.dispose();
-                if(inspectMode) {
-                    Graphics2D screen = (Graphics2D)graphics.create();
-                    screen.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                                            RenderingHints.VALUE_ANTIALIAS_ON);
-                    drawInspectLayer(screen);
-                    screen.dispose();
-                }
+            OverviewFrameBuffer.CompletedFrame frame = frameBuffer.currentFrame();
+            if(frame == null) {
+                return;
+            }
+            Dimension currentSize = getSize();
+            int drawWidth = currentSize.width > 0 ? currentSize.width :
+                frame.getWidth();
+            int drawHeight = currentSize.height > 0 ? currentSize.height :
+                frame.getHeight();
+            Graphics2D g2 = (Graphics2D)graphics.create();
+            interactionController.getTransform().apply(g2);
+            g2.drawImage(frame.getTerrainImage(), 0, 0, drawWidth, drawHeight,
+                         null);
+            drawHeatmapOverlay(g2, frame.getTerrainMap());
+            if(!inspectMode) {
+                g2.drawImage(frame.getOverlayImage(), 0, 0, drawWidth, drawHeight,
+                             null);
+            }
+            g2.dispose();
+            if(inspectMode) {
+                Graphics2D screen = (Graphics2D)graphics.create();
+                screen.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                        RenderingHints.VALUE_ANTIALIAS_ON);
+                drawInspectLayer(screen);
+                screen.dispose();
             }
         }
 
-        private void drawHeatmapOverlay(Graphics2D g2)
+        private void drawHeatmapOverlay(Graphics2D g2, TerrainMap frameTerrainMap)
         {
             if(!heatmapVisible || eventAccumulator == null ||
-               terrainMap == null || geometry == null) {
+               frameTerrainMap == null || geometry == null) {
                 return;
             }
             int max = eventAccumulator.getMaxCount(heatmapEventType);
@@ -835,7 +1106,7 @@ public class SimulatorView extends JFrame
             for(int row = visible.y; row < visible.y + visible.height; row++) {
                 for(int col = visible.x; col < visible.x + visible.width; col++) {
                     Location location = new Location(row, col);
-                    if(!terrainMap.isPassable(location)) {
+                    if(!frameTerrainMap.isPassable(location)) {
                         continue;
                     }
                     int count = eventAccumulator.getCountAt(location,
@@ -844,10 +1115,15 @@ public class SimulatorView extends JFrame
                         continue;
                     }
                     double ratio = Math.min(1.0, (double)count / max);
+                    if(heatmapEventType == SimulationEvent.EventType.DRINK) {
+                        ratio = Math.sqrt(ratio);
+                    }
                     Rectangle cell = geometry.cellBounds(row, col);
                     Color color = heatmapColor(ratio);
-                    g2.setComposite(AlphaComposite.SrcOver.derive(
-                        (float)(0.18 + ratio * 0.48)));
+                    float alpha = heatmapEventType == SimulationEvent.EventType.DRINK
+                        ? (float)(0.32 + ratio * 0.55)
+                        : (float)(0.18 + ratio * 0.48);
+                    g2.setComposite(AlphaComposite.SrcOver.derive(alpha));
                     g2.setColor(color);
                     g2.fillRect(cell.x, cell.y, cell.width, cell.height);
                 }
@@ -1108,6 +1384,10 @@ public class SimulatorView extends JFrame
                         g2.setColor(new Color(90, 200, 90, 190));
                         g2.fillOval(sx - 3, sy - 3, 6, 6);
                         break;
+                    case DRINK:
+                        g2.setColor(new Color(70, 180, 230, 220));
+                        g2.fillOval(sx - 3, sy - 5, 6, 8);
+                        break;
                     default:
                         break;
                 }
@@ -1301,12 +1581,6 @@ public class SimulatorView extends JFrame
             return u * u * p0 + 2.0 * u * t * p1 + t * t * p2;
         }
 
-        private void clearAnimalLayer()
-        {
-            animalGraphics.setComposite(AlphaComposite.Clear);
-            animalGraphics.fillRect(0, 0, size.width, size.height);
-            animalGraphics.setComposite(AlphaComposite.SrcOver);
-        }
     }
 
     private static class SwatchIcon implements Icon

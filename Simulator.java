@@ -17,6 +17,7 @@ public class Simulator
     private final SimulationRecorder recorder;
     private final List<SimulationEventListener> eventListeners;
     private final EventAccumulator eventAccumulator;
+    private final RenderFramePublisher renderFramePublisher;
     private SimulationContext context;
     private boolean verbose;
     private int stepDelay;
@@ -78,9 +79,11 @@ public class Simulator
         this.config = config == null ? SimulationConfig.baseline() : config;
         field = new Field(depth, width);
         context = new SimulationContext(depth, width, this.config);
-        view = showView ? new SimulatorView(depth, width, this.config.describe()) : null;
+        view = showView ? SimulatorView.createOnEventDispatchThread(
+            depth, width, this.config.describe()) : null;
         eventListeners = new java.util.ArrayList<>();
         eventAccumulator = new EventAccumulator();
+        renderFramePublisher = new RenderFramePublisher();
         pauseLock = new Object();
         recorder = showView
             ? new WindowedSimulationRecorder("savanna-simulation-step-report.html")
@@ -182,6 +185,7 @@ public class Simulator
         nextFieldState.removeDeadAnimals();
 
         field = nextFieldState;
+        publishRenderFrame();
 
         reportStats();
         if(shouldRefreshVisualStep()) {
@@ -206,10 +210,22 @@ public class Simulator
         attachEventListeners(context);
         populate();
         context.startStep(step, field);
+        publishRenderFrame();
         if(view != null) {
             refreshVisualStatus();
         }
         recorder.start(field, context);
+    }
+
+    private void publishRenderFrame()
+    {
+        renderFramePublisher.publish(RenderFrame.capture(
+            step, field, context, field.getWidth(), field.getDepth()));
+    }
+
+    public RenderFramePublisher getRenderFramePublisher()
+    {
+        return renderFramePublisher;
     }
 
     /**
@@ -227,12 +243,12 @@ public class Simulator
     {
         synchronized(pauseLock) {
             this.paused = paused;
-            if(view != null) {
-                view.setPaused(this.paused);
-            }
             if(!this.paused) {
                 pauseLock.notifyAll();
             }
+        }
+        if(view != null) {
+            view.setPaused(this.paused);
         }
     }
 
@@ -249,11 +265,11 @@ public class Simulator
         stopRequested = true;
         exitWhenStopped = true;
         paused = false;
-        if(view != null) {
-            view.setStopping();
-        }
         synchronized(pauseLock) {
             pauseLock.notifyAll();
+        }
+        if(view != null) {
+            view.setStopping();
         }
     }
 

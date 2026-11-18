@@ -11,8 +11,12 @@ public class SimulationUnitTests
         TestSupport.startGroup("Unit tests");
         Randomizer.reset();
         testSimulationSettings();
+        DisplayContractProbe.run();
+        OverviewFrameAtomicityProbe.run();
         testClock();
         testSurvivalPressure();
+        testSurvivalAssessment();
+        testHydrationStages();
         testStaminaStagesAndBurst();
         testStarvationNeedsThreeSteps();
         testFeedingClearsStarvation();
@@ -22,7 +26,7 @@ public class SimulationUnitTests
 
     private static void testSimulationSettings()
     {
-        TestSupport.assertEquals("visual refresh interval is 100",
+        TestSupport.assertEquals("visual simulation refresh interval is 100",
                                  100, SimulationSettings.VISUAL_REFRESH_INTERVAL);
         TestSupport.assertEquals("record interval is 100",
                                  100, SimulationSettings.RECORD_INTERVAL);
@@ -97,6 +101,48 @@ public class SimulationUnitTests
         gazelle.spendStamina(5.0);
         TestSupport.assertClose("spending stamina reduces stamina",
                                 beforeSpend - 5.0, gazelle.getStaminaPercent(), 0.01);
+    }
+
+    private static void testHydrationStages()
+    {
+        HydrationAssessment normal = new HydrationAssessment(85.0, 40,
+                                                               0.24, 8.0);
+        HydrationAssessment thirsty = new HydrationAssessment(65.0, 40,
+                                                               0.24, 8.0);
+        HydrationAssessment critical = new HydrationAssessment(30.0, 40,
+                                                               0.24, 8.0);
+        TestSupport.assertEquals("hydration normal stage",
+                                 HydrationStage.NORMAL, normal.getStage());
+        TestSupport.assertEquals("hydration thirsty stage",
+                                 HydrationStage.THIRSTY, thirsty.getStage());
+        TestSupport.assertEquals("hydration critical stage",
+                                 HydrationStage.CRITICAL, critical.getStage());
+        TestSupport.assertTrue("thirsty stage is water priority",
+                               thirsty.isWaterPriority());
+        TestSupport.assertTrue("critical stage is water priority",
+                               critical.isWaterPriority());
+    }
+
+    private static void testSurvivalAssessment()
+    {
+        SurvivalAssessment assessment = new SurvivalAssessment(80.0, 35.0);
+        TestSupport.assertClose("overall survival uses lower resource",
+                               35.0, assessment.getOverallSurvivalPercent(), 0.01);
+        TestSupport.assertClose("food pressure stays resource-specific",
+                               0.0, assessment.getFoodPressure(), 0.01);
+        TestSupport.assertClose("hydration pressure stays resource-specific",
+                               0.875, assessment.getHydrationPressure(), 0.02);
+
+        Gazelle gazelle = new Gazelle(false, new Location(1, 1));
+        SimulationContext off = new SimulationContext(5, 5,
+            SimulationConfig.baseline());
+        TestSupport.setField(gazelle, "foodLevel", gazelle.getProfile().getMaxFoodLevel() / 2);
+        SurvivalAssessment disabled = off.assessSurvival(gazelle);
+        TestSupport.assertClose("thirst off hydration survival is 100",
+                               100.0, disabled.getHydrationSurvivalPercent(), 0.01);
+        TestSupport.assertClose("thirst off overall equals food",
+                               disabled.getFoodSurvivalPercent(),
+                               disabled.getOverallSurvivalPercent(), 0.01);
     }
 
     private static void testStarvationNeedsThreeSteps()

@@ -20,6 +20,7 @@ public class SimulationContext
     private final FoodSystem foodSystem;
     private final TerrainMap terrainMap;
     private final ThirstSystem thirstSystem;
+    private final SurvivalSystem survivalSystem;
     private final SimulationConfig config;
     private Map<String, Integer> populationSnapshot;
     private int step;
@@ -47,6 +48,7 @@ public class SimulationContext
         terrainMap = new TerrainMap(depth, width, this.config.getTerrainSeed());
         thirstSystem = this.config.isThirstEnabled()
             ? new SavannahThirstSystem(terrainMap) : null;
+        survivalSystem = new SavannahSurvivalSystem();
     }
 
     public void startStep(int step, Field field)
@@ -150,6 +152,16 @@ public class SimulationContext
     public boolean isThirstEnabled()
     {
         return thirstSystem != null;
+    }
+
+    public SurvivalSystem getSurvivalSystem()
+    {
+        return survivalSystem;
+    }
+
+    public SurvivalAssessment assessSurvival(SavannahAnimal animal)
+    {
+        return survivalSystem.assess(animal, this);
     }
 
     public TerrainMap getTerrainMap()

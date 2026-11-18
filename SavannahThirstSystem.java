@@ -9,7 +9,6 @@ import java.util.Queue;
 public class SavannahThirstSystem implements ThirstSystem
 {
     private static final double BASE_DRAIN = 0.24;
-    private static final double THIRST_THRESHOLD = 35.0;
     private static final double CRITICAL_THRESHOLD = 12.0;
     private static final int DEHYDRATION_LIMIT = 18;
 
@@ -28,19 +27,8 @@ public class SavannahThirstSystem implements ThirstSystem
             return;
         }
 
-        double drain = BASE_DRAIN;
-        WeatherType weather = context.getWeatherSystem().getCurrentWeather();
-        if(weather == WeatherType.DROUGHT) {
-            drain *= 1.65;
-        }
-        else if(weather == WeatherType.RAIN) {
-            drain *= 0.55;
-        }
-        if(animal.getProfile().isPredator()) {
-            drain *= 1.10;
-        }
+        double drain = getEffectiveDrain(animal, context);
         animal.drainHydration(drain);
-
         if(animal.getHydrationPercent() <= CRITICAL_THRESHOLD) {
             animal.spendStamina(0.18);
         }
@@ -52,9 +40,39 @@ public class SavannahThirstSystem implements ThirstSystem
         }
     }
 
+    public double getEffectiveDrain(SavannahAnimal animal,
+                                    SimulationContext context)
+    {
+        double drain = BASE_DRAIN;
+        WeatherType weather = context.getWeatherSystem().getCurrentWeather();
+        if(weather == WeatherType.DROUGHT) {
+            drain *= 1.65;
+        }
+        else if(weather == WeatherType.RAIN) {
+            drain *= 0.55;
+        }
+        if(animal.getProfile().isPredator()) {
+            drain *= 1.10;
+        }
+        return drain;
+    }
+
     public boolean needsWater(SavannahAnimal animal)
     {
-        return animal != null && animal.getHydrationPercent() < THIRST_THRESHOLD;
+        return animal != null && assess(animal, null).isWaterPriority();
+    }
+
+    public HydrationAssessment assess(SavannahAnimal animal,
+                                      SimulationContext context)
+    {
+        if(animal == null) {
+            return new HydrationAssessment(0.0, Integer.MAX_VALUE, 0.0, 0.0);
+        }
+        SimulationContext safeContext = context;
+        double drain = safeContext == null ? BASE_DRAIN :
+            getEffectiveDrain(animal, safeContext);
+        return new HydrationAssessment(animal.getHydrationPercent(),
+            distanceToShore(animal.getLocation()), drain, 8.0);
     }
 
     public boolean tryDrink(SavannahAnimal animal, SimulationContext context)
@@ -96,7 +114,7 @@ public class SavannahThirstSystem implements ThirstSystem
                distanceToShore(location) == 0;
     }
 
-    private int distanceToShore(Location location)
+    public int distanceToShore(Location location)
     {
         if(location == null ||
            location.row() < 0 || location.row() >= terrain.getDepth() ||
@@ -104,6 +122,32 @@ public class SavannahThirstSystem implements ThirstSystem
             return Integer.MAX_VALUE;
         }
         return shoreDistance[location.row()][location.col()];
+    }
+
+    public int countDrinkableShores()
+    {
+        int count = 0;
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                if(shoreDistance[row][col] == 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public int maximumReachableShoreDistance()
+    {
+        int maximum = 0;
+        for(int row = 0; row < terrain.getDepth(); row++) {
+            for(int col = 0; col < terrain.getWidth(); col++) {
+                if(shoreDistance[row][col] != Integer.MAX_VALUE) {
+                    maximum = Math.max(maximum, shoreDistance[row][col]);
+                }
+            }
+        }
+        return maximum;
     }
 
     private int[][] computeShoreDistances(TerrainMap terrain)

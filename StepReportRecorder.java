@@ -179,7 +179,7 @@ public class StepReportRecorder implements SimulationRecorder
             grassPercent = (int)Math.round(context.getFoodSystem().getAverageFoodLevel() * 100);
             diseased = context.getDiseaseSystem().countInfected(field);
             total = field.getLivingPopulation();
-            speciesStats = collectSpeciesStats(field);
+            speciesStats = collectSpeciesStats(field, context);
         }
 
         int getStep()
@@ -278,6 +278,8 @@ public class StepReportRecorder implements SimulationRecorder
                        .append(", juvenile=").append(stats.juvenile)
                        .append(", adult=").append(stats.adult)
                        .append(", infected=").append(stats.infected)
+                       .append(", avgFood=").append(stats.averageFood()).append("%")
+                       .append(", avgHydration=").append(stats.averageHydration()).append("%")
                        .append(", avgSurvival=").append(stats.averageSurvival()).append("%")
                        .append(", avgStamina=").append(stats.averageStamina()).append("%")
                        .append(", lowSurvival=").append(stats.lowSurvival)
@@ -288,7 +290,8 @@ public class StepReportRecorder implements SimulationRecorder
             return details.toString();
         }
 
-        private Map<String, SpeciesStepStats> collectSpeciesStats(Field field)
+        private Map<String, SpeciesStepStats> collectSpeciesStats(Field field,
+                                                                    SimulationContext context)
         {
             Map<String, SpeciesStepStats> statsBySpecies = new LinkedHashMap<>();
             for(Animal animal : field.getAnimals()) {
@@ -319,9 +322,12 @@ public class StepReportRecorder implements SimulationRecorder
                     if(savannahAnimal.isInfected()) {
                         stats.infected++;
                     }
-                    stats.totalSurvival += savannahAnimal.getSurvivalPercent();
+                    SurvivalAssessment assessment = context.assessSurvival(savannahAnimal);
+                    stats.totalFood += assessment.getFoodSurvivalPercent();
+                    stats.totalHydration += assessment.getHydrationSurvivalPercent();
+                    stats.totalSurvival += assessment.getOverallSurvivalPercent();
                     stats.totalStamina += savannahAnimal.getStaminaPercent();
-                    if(savannahAnimal.getSurvivalPercent() < 30.0) {
+                    if(assessment.isOverallCritical()) {
                         stats.lowSurvival++;
                     }
                     if(savannahAnimal.getStarvingSteps() == 1) {
@@ -353,7 +359,19 @@ public class StepReportRecorder implements SimulationRecorder
         int starvingTwo;
         int starvingThreeOrMore;
         double totalSurvival;
+        double totalFood;
+        double totalHydration;
         double totalStamina;
+
+        int averageFood()
+        {
+            return total == 0 ? 0 : (int)Math.round(totalFood / total);
+        }
+
+        int averageHydration()
+        {
+            return total == 0 ? 0 : (int)Math.round(totalHydration / total);
+        }
 
         int averageSurvival()
         {

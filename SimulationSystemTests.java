@@ -1,3 +1,4 @@
+import java.awt.Rectangle;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,8 +24,11 @@ public class SimulationSystemTests
         testEventAccumulatorCountsLocationsByType();
         testEventAccumulatorClearResetsCounts();
         testSimulationSnapshotIsImmutable();
+        testRenderFrameIsImmutableAndCurrentOnly();
+        DisplayFactAuditProbe.run();
         testDiseaseLifecycleEvents();
         testMovementEventsAndScenes();
+        testHistoricalActorsStayOutOfCurrentScenes();
         testAmbientInspectActors();
         testTerrainMapGeneration();
         testWaterSafetyAudit();
@@ -33,6 +37,7 @@ public class SimulationSystemTests
         testInspectFootprintUsesSharedGeometry();
         testVisualWaterMaskCoversShorelineFootprint();
         testFieldRendererAcceptsSharedGeometry();
+        testOrdinaryAnimalLayerHasVisiblePixels();
         testAnimalStatusLogRows();
         testThirstSystemDefaultsOff();
         testThirstSystemDrainsAndDrinksFromShore();
@@ -59,6 +64,39 @@ public class SimulationSystemTests
         TestSupport.setField(weather, "currentWeather", WeatherType.FOG);
         int fogRange = weather.getHuntingRange(lion);
         TestSupport.assertTrue("fog lowers predator hunting range", fogRange < clearRange);
+    }
+
+    private static void testRenderFrameIsImmutableAndCurrentOnly()
+    {
+        Field field = new Field(3, 3);
+        Gazelle gazelle = new Gazelle(false, new Location(1, 1));
+        field.placeAnimal(gazelle, gazelle.getLocation());
+        SimulationContext context = new SimulationContext(3, 3);
+        context.startStep(4, field);
+        RenderFrame frame = RenderFrame.capture(4, field, context, 300, 300);
+        TestSupport.assertEquals("render frame keeps current animal", 1,
+                                 frame.animals.size());
+        TestSupport.assertEquals("render frame keeps animal species",
+                                 SpeciesRegistry.GAZELLE,
+                                 frame.animals.get(0).species);
+        TestSupport.assertTrue("render frame animal list is immutable",
+                               listRejectsRenderMutation(frame.animals));
+        RenderFramePublisher publisher = new RenderFramePublisher();
+        publisher.publish(frame);
+        TestSupport.assertEquals("publisher exposes latest frame", frame,
+                                 publisher.latest());
+    }
+
+    private static boolean listRejectsRenderMutation(
+        List<RenderAnimalSnapshot> snapshots)
+    {
+        try {
+            snapshots.add(null);
+            return false;
+        }
+        catch(UnsupportedOperationException expected) {
+            return true;
+        }
     }
 
     private static void testGrassFeeding()
@@ -380,6 +418,33 @@ public class SimulationSystemTests
                                 1.0, actor.at(0).col, 0.01);
         TestSupport.assertClose("move actor ends at destination col",
                                 2.0, actor.at(760).col, 0.01);
+
+        SimulationEvent drink = SimulationEvent.drink(1, gazelle,
+            gazelle.getLocation());
+        List<SceneDirector.Scene> drinkScenes = SceneDirector.buildScene(
+            java.util.List.of(drink), sceneField, null,
+            new java.awt.Rectangle(0, 0, 3, 3));
+        TestSupport.assertEquals("drink scene is built", 1, drinkScenes.size());
+        TestSupport.assertEquals("drink scene keeps current species",
+                                 SpeciesRegistry.GAZELLE,
+                                 drinkScenes.get(0).actors.get(0).species);
+        SceneDirector.SceneActor drinkActor = drinkScenes.get(0).actors.get(0);
+        TestSupport.assertEquals("drink scene keeps living animal ID",
+                                 Long.valueOf(gazelle.getId()),
+                                 Long.valueOf(drinkActor.animalId));
+        TestSupport.assertTrue("current living drink animation is retained",
+            Math.abs(drinkActor.at(0).scale - drinkActor.at(450).scale) > 0.01);
+
+        SimulationEvent graze = SimulationEvent.graze(2, gazelle,
+            gazelle.getLocation());
+        List<SceneDirector.Scene> grazeScenes = SceneDirector.buildScene(
+            java.util.List.of(graze), sceneField, null,
+            new java.awt.Rectangle(0, 0, 3, 3));
+        TestSupport.assertEquals("graze scene keeps one current actor", 1,
+                                 grazeScenes.size());
+        SceneDirector.SceneActor grazeActor = grazeScenes.get(0).actors.get(0);
+        TestSupport.assertTrue("current living graze animation is retained",
+            Math.abs(grazeActor.at(0).row - grazeActor.at(360).row) > 0.01);
     }
 
     private static void testAmbientInspectActors()
@@ -404,6 +469,17 @@ public class SimulationSystemTests
         boolean moved = Math.abs(start.row - middle.row) > 0.01 ||
                         Math.abs(start.col - middle.col) > 0.01;
         TestSupport.assertTrue("ambient inspect actors are animated", moved);
+
+        Field sparseField = new Field(5, 5);
+        Gazelle inside = new Gazelle(false, new Location(0, 0));
+        Zebra outside = new Zebra(false, new Location(4, 4));
+        sparseField.placeAnimal(inside, inside.getLocation());
+        sparseField.placeAnimal(outside, outside.getLocation());
+        List<SceneDirector.SceneActor> sparseActors =
+            SceneDirector.buildAmbientActors(sparseField,
+                new java.awt.Rectangle(0, 0, 1, 1));
+        TestSupport.assertEquals("inspect does not expand beyond viewport",
+                                 1, sparseActors.size());
 
         Field observedField = new Field(3, 3);
         Gazelle mover = new Gazelle(false, new Location(1, 2));
@@ -431,6 +507,77 @@ public class SimulationSystemTests
                 observedField, new java.awt.Rectangle(0, 0, 3, 3));
         TestSupport.assertTrue("grazing beats same-step movement in behavior view",
                                sameStepActors.get(0).at(0).marker.equals("eat"));
+    }
+
+    private static void testHistoricalActorsStayOutOfCurrentScenes()
+    {
+        Rectangle viewport = new Rectangle(0, 0, 3, 3);
+
+        Field deadField = new Field(3, 3);
+        Gazelle dead = new Gazelle(false, new Location(1, 1));
+        deadField.placeAnimal(dead, dead.getLocation());
+        TestSupport.invokePrivate(dead, "setDead", new Class<?>[0],
+                                  new Object[0]);
+        deadField.removeAnimal(dead);
+        SimulationEvent deadMove = new SimulationEvent(
+            SimulationEvent.EventType.MOVE, 2, 1, 1, 0, 0, dead.getId(), -1,
+            SpeciesRegistry.GAZELLE, "");
+        TestSupport.assertTrue("dead historical move creates no current scene",
+            SceneDirector.buildScene(java.util.List.of(deadMove), deadField,
+                                     null, viewport).isEmpty());
+
+        Field currentField = new Field(5, 5);
+        Gazelle current = new Gazelle(false, new Location(1, 2));
+        currentField.placeAnimal(current, current.getLocation());
+        SimulationEvent wrongSpecies = new SimulationEvent(
+            SimulationEvent.EventType.MOVE, 3, 1, 2, 1, 1,
+            current.getId(), -1, SpeciesRegistry.ZEBRA, "");
+        TestSupport.assertTrue("species-mismatched event creates no current scene",
+            SceneDirector.buildScene(java.util.List.of(wrongSpecies), currentField,
+                                     null, viewport).isEmpty());
+
+        SimulationEvent oldViewportMove = new SimulationEvent(
+            SimulationEvent.EventType.MOVE, 4, 1, 1, 1, 0,
+            current.getId(), -1, SpeciesRegistry.GAZELLE, "");
+        currentField.removeAnimal(current);
+        current.setLocation(new Location(4, 4));
+        currentField.placeAnimal(current, current.getLocation());
+        TestSupport.assertTrue("actor outside current viewport creates no scene",
+            SceneDirector.buildScene(java.util.List.of(oldViewportMove), currentField,
+                                     null, viewport).isEmpty());
+
+        currentField.removeAnimal(current);
+        current.setLocation(new Location(1, 1));
+        currentField.placeAnimal(current, current.getLocation());
+        Zebra target = new Zebra(false, new Location(1, 2));
+        currentField.placeAnimal(target, target.getLocation());
+        SimulationEvent wrongTargetSpecies = new SimulationEvent(
+            SimulationEvent.EventType.INFECTION, 4, 1, 2, 1, 1,
+            current.getId(), target.getId(), SpeciesRegistry.GAZELLE,
+            SpeciesRegistry.GAZELLE);
+        TestSupport.assertTrue("target species mismatch creates no current scene",
+            SceneDirector.buildScene(java.util.List.of(wrongTargetSpecies),
+                                     currentField, null, viewport).isEmpty());
+
+        currentField.removeAnimal(current);
+        current.setLocation(new Location(1, 2));
+        currentField.removeAnimal(target);
+        currentField.placeAnimal(current, current.getLocation());
+        SimulationEvent currentMove = SimulationEvent.move(5, current,
+            new Location(1, 1), current.getLocation());
+        List<SceneDirector.Scene> currentScenes = SceneDirector.buildScene(
+            java.util.List.of(currentMove), currentField, null, viewport);
+        TestSupport.assertEquals("current living move keeps one scene", 1,
+                                 currentScenes.size());
+        SceneDirector.SceneActor actor = currentScenes.get(0).actors.get(0);
+        TestSupport.assertEquals("current scene keeps living animal ID",
+                                 Long.valueOf(current.getId()),
+                                 Long.valueOf(actor.animalId));
+        TestSupport.assertEquals("current scene keeps current species",
+                                 SpeciesRegistry.GAZELLE, actor.species);
+        boolean moved = Math.abs(actor.at(0).row - actor.at(760).row) > 0.01 ||
+                        Math.abs(actor.at(0).col - actor.at(760).col) > 0.01;
+        TestSupport.assertTrue("current living move animation is retained", moved);
     }
 
     private static void testTerrainMapGeneration()
@@ -479,6 +626,9 @@ public class SimulationSystemTests
         TestSupport.assertEquals("step 0 has no ordinary visual markers on water",
             0, WaterSafetyProbe.countOrdinaryVisualSamplesOnWater(
                 simulator.getField(), simulator.getContext().getTerrainMap()));
+        TestSupport.assertEquals("step 0 shoreline markers remain visible",
+            0, WaterSafetyProbe.countInvisibleShoreMarkers(
+                simulator.getContext().getTerrainMap()));
         for(int index = 1; index <= 1000 && simulator.getField().isViable(); index++) {
             simulator.simulateOneStep();
             if(index % 100 == 0) {
@@ -537,6 +687,41 @@ public class SimulationSystemTests
                                bounds.x >= 0 && bounds.y >= 0 &&
                                bounds.x + bounds.width <= geometry.pixelWidth() &&
                                bounds.y + bounds.height <= geometry.pixelHeight());
+    }
+
+    private static void testOrdinaryAnimalLayerHasVisiblePixels()
+    {
+        VisualGridGeometry geometry = new VisualGridGeometry(5, 5, 100, 100);
+        FieldRenderer renderer = new FieldRenderer(java.util.Map.of(
+            SpeciesRegistry.LION, SpeciesRegistry.getProfile(SpeciesRegistry.LION).getColor(),
+            SpeciesRegistry.CHEETAH, SpeciesRegistry.getProfile(SpeciesRegistry.CHEETAH).getColor(),
+            SpeciesRegistry.ZEBRA, SpeciesRegistry.getProfile(SpeciesRegistry.ZEBRA).getColor(),
+            SpeciesRegistry.BUFFALO, SpeciesRegistry.getProfile(SpeciesRegistry.BUFFALO).getColor(),
+            SpeciesRegistry.GAZELLE, SpeciesRegistry.getProfile(SpeciesRegistry.GAZELLE).getColor()));
+        java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(
+            100, 100, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        java.awt.Graphics2D graphics = image.createGraphics();
+        SavannahAnimal[] animals = {
+            new Lion(false, new Location(0, 0)),
+            new Cheetah(false, new Location(0, 1)),
+            new Zebra(false, new Location(1, 0)),
+            new Buffalo(false, new Location(1, 1)),
+            new Gazelle(false, new Location(2, 2))
+        };
+        for(SavannahAnimal animal : animals) {
+            renderer.drawAnimal(graphics, animal.getLocation(), animal, geometry);
+        }
+        graphics.dispose();
+        int visiblePixels = 0;
+        for(int row = 0; row < image.getHeight(); row++) {
+            for(int col = 0; col < image.getWidth(); col++) {
+                if((image.getRGB(col, row) >>> 24) != 0) {
+                    visiblePixels++;
+                }
+            }
+        }
+        TestSupport.assertTrue("ordinary animal layer has visible pixels",
+                               visiblePixels > 0);
     }
 
     private static void testVisualGridGeometryMatchesTerrainCells()

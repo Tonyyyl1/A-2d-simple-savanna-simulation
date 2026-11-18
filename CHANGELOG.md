@@ -3,6 +3,63 @@
 All notable changes for the African Savanna Predator-Prey Simulation are
 documented here.
 
+## [1.6] - Atomic Overview Frames And Display Fact Audit
+
+### Added
+
+- Added `OverviewFrameBuffer` and its deterministic atomicity probe. Ordinary
+  overview frames now use private back buffers and commit only after terrain,
+  animal markers, weather tint, and diagnostics are complete.
+- Added B0 display-contract, B1 current-actor, B2 overview-frame, and B3
+  display-fact verification gates.
+- Added `DisplayFactAudit` / `DisplayFactAuditProbe` for immutable Field,
+  ordinary marker candidate, and inspect actor consistency evidence.
+
+### Changed
+
+- `SimulatorView` now marshals overview construction to the EDT and keeps the
+  previous complete frame visible during failed or expired builds and resize.
+- Resize repaints/scales the last complete frame rather than traversing Field
+  or starting a competing overview rebuild.
+- Packaging now targets Java 17 and creates a top-level source snapshot only;
+  build candidates and backups are excluded from release source archives.
+
+### Verification
+
+- B3 development acceptance: 253/253 automated tests, fixed-seed 1,000-step
+  stability parity, native-window stress probe (300 paints), and native-window
+  performance p95=122.30 ms at 1732×948.
+
+## Post-1.5 Work Started - v1.6 Observability
+
+- Added `ThirstBehaviorProbe` with shoreline counts, maximum reachable shore
+  distance, per-species hydration, thirst counts, shoreline occupancy, and
+  interval `DRINK` reporting.
+- Added `SafeMarkerPlacement`; shoreline markers now remain visible while the
+  renderer clips water pixels instead of hiding the entire animal.
+- Extended `WaterSafetyProbe` to fail when any drinkable shoreline cell has no
+  visible land pixel at the audited canvas sizes.
+- The packaged product version remains 1.5 until the complete v1.6 plan is
+  implemented and verified.
+- Added compatible `SurvivalAssessment` / `SurvivalSystem` evaluation. Food,
+  hydration, and overall values are exposed to diagnostics, status logs,
+  reports, and the renderer; legacy food behavior methods remain unchanged.
+- Added `HydrationStage` / `HydrationAssessment` with distance-aware reserve
+  thresholds. `THIRSTY` makes water the primary action and `CRITICAL` adds
+  strict waterward placement and blocked-water events.
+- Added current-actor filtering for inspect scenes, a `DRINK` scene, interval
+  thirst probe accounting, stronger drink heatmap contrast, and small-marker
+  status rendering that preserves species color.
+
+## Post-1.5 Planning - Documentation Only
+
+- Added `DEVELOPMENT_PLAN.zh.md` as the canonical next-window handoff and
+  staged development plan for thirst visibility, composite survival assessment,
+  event observability, model calibration, behaviour intents, movement
+  resolution, verification, and future release work.
+- This planning entry does not change the current product version: the latest
+  implemented and packaged release remains 1.5.
+
 ## [1.5] - Shared Renderer, Enhanced Status Dialog, And Thirst Experiment
 
 ### Added

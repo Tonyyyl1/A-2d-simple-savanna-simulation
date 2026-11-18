@@ -34,4 +34,14 @@ public class VisualWaterMask
     {
         return geometry.isWaterPixel(terrain, x, y);
     }
+
+    public TerrainMap getTerrain()
+    {
+        return terrain;
+    }
+
+    public VisualGridGeometry getGeometry()
+    {
+        return geometry;
+    }
 }

@@ -16,6 +16,7 @@ public class SimulationEvent
         DISEASE_DEATH,
         MOVE,
         DRINK
+        ,WATER_BLOCKED
     }
 
     public final EventType type;
@@ -129,5 +130,15 @@ public class SimulationEvent
         return new SimulationEvent(EventType.DRINK, step,
             location.row(), location.col(), -1, -1,
             animal.getId(), -1L, animal.getProfile().getName(), "");
+    }
+
+    public static SimulationEvent waterBlocked(int step, SavannahAnimal animal,
+                                               Location location)
+    {
+        return new SimulationEvent(EventType.WATER_BLOCKED, step,
+            location == null ? -1 : location.row(),
+            location == null ? -1 : location.col(), -1, -1,
+            animal == null ? -1 : animal.getId(), -1L,
+            animal == null ? "" : animal.getProfile().getName(), "");
     }
 }

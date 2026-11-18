@@ -2,6 +2,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.util.Map;
 
 /**
@@ -37,6 +38,38 @@ public class FieldRenderer
                            SavannahAnimal animal,
                            VisualGridGeometry geometry)
     {
+        drawAnimal(graphics, location, animal, geometry, null);
+    }
+
+    public void drawAnimal(Graphics2D graphics, Location location,
+                           SavannahAnimal animal,
+                           VisualGridGeometry geometry,
+                           TerrainMap terrain)
+    {
+        drawAnimal(graphics, location, animal, geometry, terrain, null);
+    }
+
+    public void drawAnimal(Graphics2D graphics, Location location,
+                           SavannahAnimal animal,
+                           VisualGridGeometry geometry,
+                           TerrainMap terrain,
+                           SurvivalAssessment assessment)
+    {
+        Shape previousClip = graphics.getClip();
+        if(terrain != null) {
+            java.awt.geom.Area landClip = new java.awt.geom.Area();
+            Rectangle safe = SafeMarkerPlacement.safeBounds(
+                VisualFootprint.ordinaryMarker(location, geometry), animal);
+            for(int y = safe.y; y <= safe.y + safe.height; y++) {
+                for(int x = safe.x; x <= safe.x + safe.width; x++) {
+                    if(SafeMarkerPlacement.isLandPixel(geometry, terrain, x, y)) {
+                        landClip.add(new java.awt.geom.Area(
+                            new Rectangle(x, y, 1, 1)));
+                    }
+                }
+            }
+            graphics.clip(landClip);
+        }
         VisualFootprint.OrdinaryMarker marker =
             VisualFootprint.ordinaryMarker(location, geometry);
         int left = marker.left;
@@ -67,7 +100,9 @@ public class FieldRenderer
             graphics.drawOval(symbolLeft, symbolTop, symbolSize, symbolSize);
         }
 
-        if(animal.isSurvivalCritical()) {
+        boolean overallCritical = assessment != null
+            ? assessment.isOverallCritical() : animal.isSurvivalCritical();
+        if(overallCritical && symbolSize >= 6) {
             graphics.setColor(new Color(255, 145, 42, 210));
             graphics.drawOval(symbolLeft - 1, symbolTop - 1,
                               symbolSize + 2, symbolSize + 2);
@@ -83,9 +118,16 @@ public class FieldRenderer
         }
 
         if(animal.isThirsty()) {
-            int dropSize = Math.max(3, symbolSize / 3);
+            int dropSize = symbolSize <= 5 ? 1 : Math.max(3, symbolSize / 3);
             graphics.setColor(THIRST_COLOR);
-            graphics.fillOval(symbolLeft, symbolTop, dropSize, dropSize + 1);
+            int dropX = symbolSize <= 5 ? symbolLeft + symbolSize - 1 : symbolLeft;
+            int dropY = symbolSize <= 5 ? symbolTop : symbolTop;
+            graphics.fillOval(dropX, dropY, dropSize, dropSize + 1);
+        }
+
+        if(overallCritical && symbolSize < 6) {
+            graphics.setColor(new Color(255, 145, 42, 220));
+            graphics.fillRect(symbolLeft, symbolTop, 1, 1);
         }
 
         if(animal.isInfected()) {
@@ -94,6 +136,7 @@ public class FieldRenderer
             graphics.fillOval(symbolLeft + symbolSize - dotSize,
                               symbolTop, dotSize, dotSize);
         }
+        graphics.setClip(previousClip);
     }
 
     private Color getColor(String speciesName, SavannahAnimal animal)

@@ -15,12 +15,15 @@ mkdir -p "$OUT"
 
 cp "$SRC"/*.java "$WORK"/
 cd "$WORK"
-javac -Xlint:unchecked -Xlint:deprecation *.java
+javac --release 17 -Xlint:unchecked -Xlint:deprecation *.java
 printf 'Main-Class: VisualSimulationRunner\n' > "$JAR_MANIFEST"
 jar cfm "$JAR" "$JAR_MANIFEST" *.class
 
 cd "$SRC"
-zip -qr "$ZIP" . -i '*.java' '*.md' '*.txt' '*.bluej' '*.ctxt' '*.sh'
+find . -maxdepth 1 -type f \( \
+    -name '*.java' -o -name '*.md' -o -iname '*.txt' -o \
+    -name '*.bluej' -o -name '*.ctxt' -o -name '*.sh' \
+\) -print | sort | zip -q "$ZIP" -@
 
 {
     printf 'savanna-simulation %s\n' "$TAG"

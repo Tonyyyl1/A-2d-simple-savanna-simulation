@@ -64,10 +64,11 @@ public class AnimalStatusLog
         panel.add(title, BorderLayout.NORTH);
 
         JPanel metrics = new JPanel(new GridLayout(2, 3, 8, 4));
+        SurvivalAssessment assessment = assessment(animal, context);
         addSummary(metrics, "Food / 食物",
             animal.getFoodLevel() + "/" + animal.getProfile().getMaxFoodLevel());
         addSummary(metrics, "Survival / 生存",
-            percent(animal.getSurvivalPercent()));
+            percent(assessment.getOverallSurvivalPercent()));
         addSummary(metrics, "Stamina / 体力",
             percent(animal.getStaminaPercent()));
         addSummary(metrics, "Hydration / 水分",
@@ -97,6 +98,7 @@ public class AnimalStatusLog
         Location location = animal.getLocation();
         SpeciesProfile profile = animal.getProfile();
         TerrainType terrain = terrainAt(context, location);
+        SurvivalAssessment assessment = assessment(animal, context);
 
         add(rows, "Species / 物种",
             profile.getName() + " / " + speciesChinese(profile.getName()));
@@ -116,10 +118,14 @@ public class AnimalStatusLog
             terrain.getDisplayName() + " / " + terrainChinese(terrain));
         add(rows, "Food / 食物",
             animal.getFoodLevel() + "/" + profile.getMaxFoodLevel() +
-            " (" + percent(animal.getSurvivalPercent()) + ")");
+            " (" + percent(assessment.getFoodSurvivalPercent()) + ")");
+        add(rows, "Overall survival / 综合生存",
+            percent(assessment.getOverallSurvivalPercent()));
+        add(rows, "Hydration survival / 水分生存",
+            percent(assessment.getHydrationSurvivalPercent()));
         add(rows, "Survival pressure / 生存压力",
-            percent(animal.getSurvivalPressure() * 100.0) +
-            (animal.isSurvivalCritical() ? " - critical / 危急" :
+            percent(assessment.getOverallPressure() * 100.0) +
+            (assessment.isOverallCritical() ? " - critical / 危急" :
                                            " - stable / 稳定"));
         add(rows, "Stamina / 体力", percent(animal.getStaminaPercent()));
         add(rows, "Stamina stage / 体力阶段",
@@ -144,6 +150,15 @@ public class AnimalStatusLog
     private static void add(List<String[]> rows, String metric, String value)
     {
         rows.add(new String[] { metric, value });
+    }
+
+    private static SurvivalAssessment assessment(SavannahAnimal animal,
+                                                 SimulationContext context)
+    {
+        if(context != null) {
+            return context.assessSurvival(animal);
+        }
+        return new SurvivalAssessment(animal.getFoodSurvivalPercent(), 100.0);
     }
 
     private static TerrainType terrainAt(SimulationContext context,

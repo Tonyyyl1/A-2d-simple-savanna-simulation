@@ -98,8 +98,13 @@ public abstract class SavannahAnimal extends Animal
             sortByHabitatPreference(freeLocations, context);
             boolean drinkingNow = false;
             Location thirstDestination = null;
-            if(context.isThirstEnabled() &&
-               context.getThirstSystem().needsWater(this)) {
+            HydrationAssessment hydrationAssessment = null;
+            boolean waterPriority = false;
+            if(context.isThirstEnabled()) {
+                hydrationAssessment = context.getThirstSystem().assess(this, context);
+                waterPriority = hydrationAssessment.isWaterPriority();
+            }
+            if(waterPriority) {
                 drinkingNow = context.getThirstSystem().tryDrink(this, context);
                 if(!drinkingNow) {
                     thirstDestination =
@@ -107,7 +112,7 @@ public abstract class SavannahAnimal extends Animal
                                                                   freeLocations);
                 }
             }
-            if(!freeLocations.isEmpty() && !isSurvivalCritical()) {
+            if(!waterPriority && !freeLocations.isEmpty() && !isSurvivalCritical()) {
                 context.getBreedingSystem().tryBreed(this, currentField, nextFieldState,
                                                      context, freeLocations);
             }
@@ -116,7 +121,7 @@ public abstract class SavannahAnimal extends Animal
             if(thirstDestination != null) {
                 nextLocation = thirstDestination;
             }
-            else if(isActive(context) && !drinkingNow) {
+            else if(!waterPriority && isActive(context) && !drinkingNow) {
                 if(profile.isPredator()) {
                     nextLocation = context.getPredationSystem().hunt(this, currentField, context);
                 }
@@ -132,13 +137,25 @@ public abstract class SavannahAnimal extends Animal
                     nextLocation = freeLocations.remove(0);
                 }
             }
-            else if(!profile.isPredator()) {
+            else if(!waterPriority && !profile.isPredator()) {
                 context.getFoodSystem().feedHerbivoreAt(this, getLocation(), context);
             }
 
-            placeInNextField(nextFieldState, nextLocation, freeLocations, context);
-            if(context.isThirstEnabled() &&
-               context.getThirstSystem().needsWater(this)) {
+            placeInNextField(nextFieldState, nextLocation, freeLocations, context,
+                             waterPriority);
+            if(waterPriority && !drinkingNow && isSurvivalCritical() && isAlive()) {
+                // Water remains the primary movement decision. A food-critical
+                // animal may recover food as a secondary action so the new
+                // hydration priority does not turn the legacy food model into
+                // an artificial starvation trap during a long water trek.
+                if(profile.isPredator()) {
+                    context.getPredationSystem().hunt(this, currentField, context);
+                }
+                else {
+                    context.getFoodSystem().feedHerbivoreAt(this, getLocation(), context);
+                }
+            }
+            if(waterPriority) {
                 context.getThirstSystem().tryDrink(this, context);
             }
         }
@@ -168,6 +185,12 @@ public abstract class SavannahAnimal extends Animal
      * @return Food level as a percentage of this species' maximum food level.
      */
     public double getSurvivalPercent()
+    {
+        return getFoodSurvivalPercent();
+    }
+
+    /** Compatibility-preserving food-only survival value. */
+    public double getFoodSurvivalPercent()
     {
         double percent = ((double)Math.max(0, foodLevel) /
                           Math.max(1, profile.getMaxFoodLevel())) * 100.0;
@@ -498,7 +521,8 @@ public abstract class SavannahAnimal extends Animal
 
     private void placeInNextField(Field nextFieldState, Location preferredLocation,
                                   List<Location> freeLocations,
-                                  SimulationContext context)
+                                  SimulationContext context,
+                                  boolean waterPriority)
     {
         Location oldLocation = getLocation();
         Location destination = preferredLocation;
@@ -513,6 +537,33 @@ public abstract class SavannahAnimal extends Animal
             recordMovementOrRest(oldLocation, destination, context);
             setLocation(destination);
             nextFieldState.placeAnimal(this, destination);
+        }
+        else if(waterPriority) {
+            destination = bestWaterwardLocation(freeLocations, context, oldLocation);
+            if(destination != null) {
+                freeLocations.remove(destination);
+            }
+            if(destination == null && nextFieldState.getAnimalAt(oldLocation) == null) {
+                destination = oldLocation;
+            }
+            if(destination != null) {
+                recordMovementOrRest(oldLocation, destination, context);
+                setLocation(destination);
+                nextFieldState.placeAnimal(this, destination);
+                return;
+            }
+            context.recordEvent(SimulationEvent.waterBlocked(context.getStep(), this,
+                                                             oldLocation));
+            destination = TerrainNavigator.nearestFreePassable(nextFieldState,
+                context.getTerrainMap(), oldLocation, 2);
+            if(destination != null) {
+                recordMovementOrRest(oldLocation, destination, context);
+                setLocation(destination);
+                nextFieldState.placeAnimal(this, destination);
+            }
+            else {
+                setDead();
+            }
         }
         else if(!freeLocations.isEmpty()) {
             destination = freeLocations.remove(0);
@@ -532,6 +583,26 @@ public abstract class SavannahAnimal extends Animal
                 setDead();
             }
         }
+    }
+
+    private Location bestWaterwardLocation(List<Location> freeLocations,
+                                           SimulationContext context,
+                                           Location oldLocation)
+    {
+        if(freeLocations == null || oldLocation == null) {
+            return null;
+        }
+        int currentDistance = context.getThirstSystem().distanceToShore(oldLocation);
+        Location best = null;
+        int bestDistance = Integer.MAX_VALUE;
+        for(Location location : freeLocations) {
+            int distance = context.getThirstSystem().distanceToShore(location);
+            if(distance < currentDistance && distance < bestDistance) {
+                best = location;
+                bestDistance = distance;
+            }
+        }
+        return best;
     }
 
     private void sortByHabitatPreference(List<Location> locations,

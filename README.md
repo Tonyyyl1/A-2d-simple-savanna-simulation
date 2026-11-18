@@ -1,6 +1,19 @@
 # African Savanna Predator-Prey Simulation
 
-Version: **1.5**
+Version: **1.6**
+
+v1.6 is the accepted display-consistency release. It keeps the v1.5 thirst
+experiment default-off while adding atomic ordinary overview-frame publication
+and a read-only B3 fact audit for Field, ordinary marker candidates, and
+inspect living actors.
+
+The current working build also includes `SurvivalAssessment`: food,
+hydration, and overall survival are reported consistently. With thirst off,
+hydration is fixed at 100% and overall survival remains the legacy food value.
+
+The next working build adds three-stage hydration (`NORMAL`, `THIRSTY`,
+`CRITICAL`), distance-aware water reserve, water-priority movement, a drink
+scene, stronger drink heatmap contrast, and resize/current-actor safeguards.
 
 An object-oriented Java and BlueJ simulation of an African savanna ecosystem.
 The project extends the classic foxes-and-rabbits predator-prey model into a
@@ -10,6 +23,12 @@ test suite.
 
 ## Version Highlights
 
+- **1.6 / atomic overview frame + display fact audit**: ordinary terrain and
+  foreground are now built privately and committed as one completed EDT-owned
+  frame, eliminating the terrain-only race during refresh and resize. The
+  B3 audit captures immutable ID/species/location facts for Field, ordinary
+  marker candidates, and inspect actors without changing either renderer or
+  the ecological random stream.
 - **1.5 / shared renderer + status dialog + thirst experiment**:
   ordinary animal marker rendering now goes through shared `FieldRenderer`,
   keeping live view and future snapshot tools on the same `VisualGridGeometry`
@@ -353,6 +372,14 @@ recent window.
 The default visual startup dialog includes an `Experimental thirst system`
 checkbox. It is unchecked by default, and reset returns it to off.
 
+## Next Development Plan
+
+The post-1.5 architecture audit, measured thirst-visibility findings, staged
+v1.6/v1.7 implementation plan, verification gates, and a copy-ready Chinese
+handoff are maintained in `DEVELOPMENT_PLAN.zh.md`. The current released
+version remains 1.5; the planned version names in that document are not yet
+implemented or packaged.
+
 ## Important Files
 
 - `VisualSimulationRunner.java`: starts the GUI simulation.
@@ -373,6 +400,9 @@ checkbox. It is unchecked by default, and reset returns it to off.
 - `CHANGELOG.md`: version history.
 - `README.zh.md`: Chinese implementation plan and delivery notes for the
   shared renderer, enhanced status dialog, and thirst experiment.
+- `DEVELOPMENT_PLAN.zh.md`: canonical post-1.5 architecture plan and next-window
+  handoff for thirst visibility, survival assessment, behaviour orchestration,
+  verification, and release work.
 - `TUNING_EFFICIENCY.md`: tuning workflow and timing evidence.
 - `UPDATE_NOTES.md`: concise update summary.
 

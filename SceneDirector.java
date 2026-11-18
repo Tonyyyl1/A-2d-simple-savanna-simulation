@@ -176,6 +176,9 @@ public class SceneDirector
             if(scenes.size() >= MAX_SPECIAL_SCENES) {
                 break;
             }
+            if(!currentActorsPresent(event, field, viewportCells)) {
+                continue;
+            }
             Scene scene = buildSceneFor(event, field);
             if(scene != null) {
                 scene = sanitizeScene(scene, terrainMap, field);
@@ -193,6 +196,9 @@ public class SceneDirector
                 break;
             }
             if(reservedActors.contains(event.actorId)) {
+                continue;
+            }
+            if(!currentActorsPresent(event, field, viewportCells)) {
                 continue;
             }
             SceneActor actor = buildMoveActor(event, field);
@@ -434,20 +440,38 @@ public class SceneDirector
     private static List<SavannahAnimal> behaviorCandidates(Field field,
                                                            Rectangle viewportCells)
     {
-        List<SavannahAnimal> candidates = visibleAnimals(field, viewportCells);
-        int padding = 2;
-        while(candidates.size() < TARGET_BEHAVIOR_ACTORS) {
-            Rectangle expanded = expand(viewportCells, padding, field);
-            if(expanded.equals(viewportCells) ||
-               expanded.width >= field.getWidth() &&
-               expanded.height >= field.getDepth()) {
-                candidates = visibleAnimals(field, expanded);
-                break;
-            }
-            candidates = visibleAnimals(field, expanded);
-            padding *= 2;
+        return visibleAnimals(field, viewportCells);
+    }
+
+    private static boolean currentActorsPresent(SimulationEvent event, Field field,
+                                                Rectangle viewportCells)
+    {
+        if(!currentActorMatches(field, viewportCells, event.actorId,
+                                event.actorSpecies)) {
+            return false;
         }
-        return candidates;
+        if(event.type == SimulationEvent.EventType.HUNT ||
+           event.type == SimulationEvent.EventType.BIRTH ||
+           (event.type == SimulationEvent.EventType.INFECTION &&
+            event.targetId >= 0)) {
+            return currentActorMatches(field, viewportCells, event.targetId,
+                                       event.targetSpecies);
+        }
+        return true;
+    }
+
+    private static boolean currentActorMatches(Field field,
+                                               Rectangle viewportCells,
+                                               long id, String species)
+    {
+        SavannahAnimal animal = findById(field, id);
+        if(animal == null ||
+           !animal.getProfile().getName().equals(species)) {
+            return false;
+        }
+        Location location = animal.getLocation();
+        return location != null &&
+               viewportCells.contains(location.col(), location.row());
     }
 
     private static Rectangle expand(Rectangle viewportCells, int padding,
@@ -502,6 +526,7 @@ public class SceneDirector
             case INFECTION:     return 4;
             case DISEASE_DEATH: return 5;
             case RECOVERY:      return 6;
+            case DRINK:         return 1;
             default:            return 7;
         }
     }
@@ -887,8 +912,27 @@ public class SceneDirector
                     ? buildInfectionChain(event, field)
                     : buildInfectionPulse(event, field);
             case RECOVERY:      return buildRecoveryPulse(event, field);
+            case DRINK:         return buildDrink(event, field);
             default:            return null;
         }
+    }
+
+    private static Scene buildDrink(SimulationEvent event, Field field)
+    {
+        SavannahAnimal animal = findById(field, event.actorId);
+        double row = event.row;
+        double col = event.col;
+        double speed = animal == null ? 1.0 : speedFactorFor(animal);
+        List<Keyframe> frames = new ArrayList<>();
+        frames.add(new Keyframe(0, row, col, 1.0, 1.0, 0.0,
+                                "drink", markerColor("drink")));
+        frames.add(new Keyframe(450, row, col, 1.12, 1.0, 0.0,
+                                null, null));
+        frames.add(new Keyframe(900, row, col, 1.0, 1.0, 0.0,
+                                "drink", markerColor("drink")));
+        return new Scene(java.util.List.of(new SceneActor(
+            event.actorSpecies, frames, speed, false, event.actorId)),
+            new ArrayList<Vfx>(), 900, event);
     }
 
     private static Scene buildHunt(SimulationEvent event, Field field)
@@ -1135,6 +1179,8 @@ public class SceneDirector
             case "move":
             case "prowl":
                 return new Color(220, 220, 190);
+            case "drink":
+                return new Color(70, 180, 230);
             default:
                 return Color.white;
         }

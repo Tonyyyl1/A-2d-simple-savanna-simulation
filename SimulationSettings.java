@@ -3,6 +3,7 @@
  */
 public class SimulationSettings
 {
+    // Preserve the original batch cadence for the shared animal surface.
     public static final int VISUAL_REFRESH_INTERVAL = 100;
     public static final int RECORD_INTERVAL = 100;
     public static final int CHART_UPDATE_INTERVAL = 100;

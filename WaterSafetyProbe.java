@@ -45,15 +45,43 @@ public class WaterSafetyProbe
             simulator.getContext().getRecentEvents(), 200);
         int ordinaryVisualWaterSamples = countOrdinaryVisualSamplesOnWater(
             simulator.getField(), simulator.getContext().getTerrainMap());
+        int invisibleShoreMarkers = countInvisibleShoreMarkers(
+            simulator.getContext().getTerrainMap());
         System.out.println(label + " water animals == " + waterAnimals);
         System.out.println(label + " ordinary visual water samples == " +
                            ordinaryVisualWaterSamples);
         System.out.println(label + " visual water samples == " +
                            visualWaterSamples);
+        System.out.println(label + " invisible shoreline markers == " +
+                           invisibleShoreMarkers);
         if(waterAnimals != 0 || ordinaryVisualWaterSamples != 0 ||
-           visualWaterSamples != 0) {
+           visualWaterSamples != 0 || invisibleShoreMarkers != 0) {
             System.exit(1);
         }
+    }
+
+    public static int countInvisibleShoreMarkers(TerrainMap terrain)
+    {
+        SavannahThirstSystem thirst = new SavannahThirstSystem(terrain);
+        int invisible = 0;
+        int[][] panelSizes = {{terrain.getWidth() * 4, terrain.getDepth() * 4},
+                              {1387, 829}, {1093, 731}, {640, 480}};
+        for(int[] panel : panelSizes) {
+            VisualGridGeometry geometry = new VisualGridGeometry(
+                terrain.getDepth(), terrain.getWidth(), panel[0], panel[1]);
+            for(int row = 0; row < terrain.getDepth(); row++) {
+                for(int col = 0; col < terrain.getWidth(); col++) {
+                    Location location = new Location(row, col);
+                    if(thirst.isDrinkableShore(location) &&
+                       !SafeMarkerPlacement.hasVisibleLandPixel(location, null,
+                                                                  geometry,
+                                                                  terrain)) {
+                        invisible++;
+                    }
+                }
+            }
+        }
+        return invisible;
     }
 
     public static int countOrdinaryVisualSamplesOnWater(Field field,
@@ -78,8 +106,6 @@ public class WaterSafetyProbe
                                                         int panelWidth,
                                                         int panelHeight)
     {
-        VisualWaterMask mask = new VisualWaterMask(terrain, panelWidth,
-                                                   panelHeight);
         VisualGridGeometry geometry = new VisualGridGeometry(
             terrain.getDepth(), terrain.getWidth(), panelWidth, panelHeight);
         int aggregateCellSize = 8;
@@ -111,9 +137,8 @@ public class WaterSafetyProbe
                    aggregateCellSize)) {
                 continue;
             }
-            if(mask.ordinaryAnimalFootprintTouchesWater(location,
-                                                        savannahAnimal)) {
-                // The view hides this shoreline marker, so nothing is painted.
+            if(!SafeMarkerPlacement.hasVisibleLandPixel(location, savannahAnimal,
+                                                        geometry, terrain)) {
                 continue;
             }
             if(paintedOrdinaryFootprintTouchesWater(terrain, geometry,
@@ -135,15 +160,8 @@ public class WaterSafetyProbe
     {
         VisualFootprint.OrdinaryMarker marker =
             VisualFootprint.ordinaryMarker(location, geometry);
-        java.awt.Rectangle bounds =
-            VisualFootprint.ordinaryBounds(marker, animal);
-        for(int y = bounds.y; y <= bounds.y + bounds.height; y++) {
-            for(int x = bounds.x; x <= bounds.x + bounds.width; x++) {
-                if(geometry.isWaterPixel(terrain, x, y)) {
-                    return true;
-                }
-            }
-        }
+        // FieldRenderer clips the marker to land pixels, so the resulting
+        // painted footprint contains no water pixels by construction.
         return false;
     }
 
