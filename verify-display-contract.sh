@@ -3,10 +3,11 @@ set -eu
 
 cd "$(dirname "$0")"
 classes=${1:-build/classes}
+class_dir="$classes/savanna"
 
-if [ ! -f "$classes/Simulator.class" ] ||
-   [ ! -f "$classes/SimulatorView.class" ] ||
-   [ ! -f "$classes/SimulatorView\$FieldView.class" ]; then
+if [ ! -f "$class_dir/Simulator.class" ] ||
+   [ ! -f "$class_dir/SimulatorView.class" ] ||
+   [ ! -f "$class_dir/SimulatorView\$FieldView.class" ]; then
     echo "Display contract verification requires compiled classes in: $classes" >&2
     exit 1
 fi
@@ -14,9 +15,9 @@ fi
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/savanna-display-contract.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 
-javap -classpath "$classes" -c -p Simulator > "$tmp_dir/Simulator.javap"
-javap -classpath "$classes" -c -p SimulatorView > "$tmp_dir/SimulatorView.javap"
-javap -classpath "$classes" -c -p 'SimulatorView$FieldView' \
+javap -classpath "$classes" -c -p savanna.Simulator > "$tmp_dir/Simulator.javap"
+javap -classpath "$classes" -c -p savanna.SimulatorView > "$tmp_dir/SimulatorView.javap"
+javap -classpath "$classes" -c -p 'savanna.SimulatorView$FieldView' \
     > "$tmp_dir/SimulatorView-FieldView.javap"
 
 awk '
@@ -34,11 +35,13 @@ awk '
 awk '
     /private javax\.swing\.Timer sceneTimer\(\);/ { in_method = 1; next }
     in_method && /private void stopSceneTimer\(\);/ { in_method = 0 }
-    in_method && /bipush[[:space:]]+33/ { saw_33 = 1 }
+    in_method && /DisplayConfig\.getInspectTickMillis:\(\)I/ {
+        saw_config_tick = 1
+    }
     in_method && /javax\/swing\/Timer\."<init>"/ { saw_timer = 1 }
-    END { exit saw_33 && saw_timer ? 0 : 1 }
+    END { exit saw_config_tick && saw_timer ? 0 : 1 }
 ' "$tmp_dir/SimulatorView.javap" || {
-    echo "FAIL sceneTimer is not a 33 ms Swing Timer" >&2
+    echo "FAIL sceneTimer does not use the typed inspect-tick config" >&2
     exit 1
 }
 
@@ -56,7 +59,7 @@ awk '
 }
 
 awk '
-    /private void drawSceneActor\(java\.awt\.Graphics2D, SceneDirector\$SceneActor, double\);/ {
+    /private void drawSceneActor\(/ {
         in_method = 1
         next
     }
@@ -65,7 +68,7 @@ awk '
         elapsed_loaded = 1
         next
     }
-    in_method && /SceneDirector\$SceneActor\.at:\(D\)/ {
+    in_method && /SceneActor\.at:\(D\)/ {
         if(elapsed_loaded) {
             passed = 1
         }

@@ -1,0 +1,20 @@
+legacy_surface,classification,descriptor_key,legacy_default,production_consumers,status,notes
+visible_frame_cadence,TUNABLE,observation.visibleCadence,100,Simulator;SimulationSettings,active,CFG0 target
+report_cadence,TUNABLE,observation.reportCadence,100,StepReportRecorder;WindowedSimulationRecorder,active,CFG0 target
+chart_cadence,TUNABLE,observation.chartCadence,100,SimulationSettings,dead-code duplicate,Production chart follows report
+event_summary_interval,TUNABLE,observation.visibleCadence,100,FrameEventSummary,active,Currently independently derived with /100
+headless_diagnostic_cadence,TUNABLE,observation.diagnosticCadence,100,SimulationDiagnostics,active,CFG0 target
+heatmap_windows,TUNABLE,observation.heatmapWindows,100/1000/whole,HeatmapWindow;EventAccumulator,active,CFG0 target
+representative_event_capacity,TUNABLE,observation.representativeEventCapacity,96,EventAccumulator,active,CFG0 target
+recent_event_capacity,TUNABLE,observation.recentEventCapacity,600,SimulationContext;BoundedEventDeque,active,CFG0 target
+detail_event_capacity,TUNABLE,observation.detailEventCapacity,5,AnimalStatusLog,active,CFG0 target
+visible_boundary_delay,TUNABLE,display.boundaryDelay,24ms,SimulationRunner,active,CFG0 target
+inspect_tick_period,TUNABLE,display.inspectTickPeriod,33ms,SimulatorView,active,CFG0 target
+inspect_hold_duration,TUNABLE,display.inspectHoldDuration,450ms,SimulatorView,active,CFG0 target
+inspect_ambient_cycle,TUNABLE,display.inspectAmbientCycle,2400ms,SimulatorView,active,CFG0 target
+inspect_zoom_ratio,TUNABLE,display.inspectZoomRatio,2.5,SimulatorView;DisplayContractProbe,active,U2 changes pause contract
+map_scale,TUNABLE,world.mapScale,3,StartupConfigDialog;SimulationConfig,active,Startup only
+steps_per_frame,TUNABLE,display.stepsPerFrame,legacy UI read-only,StartupConfigDialog,active,Needs descriptor wiring
+food_hydration_population_step,DERIVED_READ_ONLY,,runtime facts,SimulatorView;AnimalStatusLog,active,Must remain observation only
+layout_coordinates,INTERNAL_THEME,display.theme,scattered,SimulatorView;InspectLayout,active,Not ecological configuration
+prey_30_300_gate,ACCEPTANCE_ONLY,,30/300,RegionalHotspotEpisode future,not_started,Validation gate not user setting

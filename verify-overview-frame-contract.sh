@@ -3,11 +3,18 @@ set -eu
 
 cd "$(dirname "$0")"
 classes=${1:-build/classes}
+if [ -f "$classes/savanna/Simulator.class" ]; then
+    class_dir="$classes/savanna"
+    class_prefix="savanna."
+else
+    class_dir="$classes"
+    class_prefix=""
+fi
 
 for required in \
-    "$classes/Simulator.class" \
-    "$classes/SimulatorView.class" \
-    "$classes/SimulatorView\$FieldView.class"; do
+    "$class_dir/Simulator.class" \
+    "$class_dir/SimulatorView.class" \
+    "$class_dir/SimulatorView\$FieldView.class"; do
     if [ ! -f "$required" ]; then
         echo "Overview frame verification requires compiled class: $required" >&2
         exit 1
@@ -17,16 +24,16 @@ done
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/savanna-overview-contract.XXXXXX")
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 
-javap -classpath "$classes" -c -p SimulatorView > "$tmp_dir/SimulatorView.javap"
-javap -classpath "$classes" -c -p 'SimulatorView$FieldView' \
+javap -classpath "$classes" -c -p "${class_prefix}SimulatorView" > "$tmp_dir/SimulatorView.javap"
+javap -classpath "$classes" -c -p "${class_prefix}SimulatorView\$FieldView" \
     > "$tmp_dir/SimulatorView-FieldView.javap"
 
-for class_file in "$classes"/SimulatorView\$*.class; do
+for class_file in "$class_dir"/SimulatorView\$*.class; do
     if [ ! -f "$class_file" ]; then
         continue
     fi
     class_name=$(basename "$class_file" .class)
-    javap -classpath "$classes" -c -p "$class_name" \
+    javap -classpath "$classes" -c -p "${class_prefix}$class_name" \
         > "$tmp_dir/$class_name.javap"
 done
 
@@ -54,15 +61,15 @@ if [ "$legacy_mutable_front" = true ] &&
 fi
 
 for required in \
-    "$classes/OverviewFrameBuffer.class" \
-    "$classes/OverviewFrameAtomicityProbe.class"; do
+    "$class_dir/OverviewFrameBuffer.class" \
+    "$class_dir/OverviewFrameAtomicityProbe.class"; do
     if [ ! -f "$required" ]; then
         echo "Overview frame verification requires B2 class: $required" >&2
         exit 1
     fi
 done
 
-javap -classpath "$classes" -c -p OverviewFrameBuffer \
+javap -classpath "$classes" -c -p "${class_prefix}OverviewFrameBuffer" \
     > "$tmp_dir/OverviewFrameBuffer.javap"
 
 if grep -Eq 'animal(Graphics|Image)' "$tmp_dir/SimulatorView-FieldView.javap"; then
@@ -71,12 +78,12 @@ if grep -Eq 'animal(Graphics|Image)' "$tmp_dir/SimulatorView-FieldView.javap"; t
 fi
 
 awk '
-    /public void showStatus\(int, Field, SimulationContext\);/ {
+    /public void showStatus\(/ {
         in_method = 1
         next
     }
     in_method && /^  (public|private|protected) / { in_method = 0 }
-    in_method && /runOnEdtAndWait:\(Ljava\/lang\/Runnable;\)V/ { passed = 1 }
+    in_method && /runOnEdtAndWait/ { passed = 1 }
     END { exit passed ? 0 : 1 }
 ' "$tmp_dir/SimulatorView.javap" || {
     echo "FAIL showStatus does not synchronously marshal its build to the EDT" >&2
@@ -97,7 +104,7 @@ awk '
 }
 
 awk '
-    /public void commit\(OverviewFrameBuffer\$CompletedFrame\);/ {
+    /public void commit\(/ {
         in_method = 1
         next
     }
@@ -120,7 +127,8 @@ for dump in "$tmp_dir"/SimulatorView\$*.javap; do
     fi
 done
 
-if ! grep -q 'SimulatorView.createOnEventDispatchThread' Simulator.java; then
+if ! grep -q 'SimulatorView.createOnEventDispatchThread' \
+    src/main/java/savanna/Simulator.java; then
     echo "FAIL Simulator no longer creates SimulatorView on the EDT" >&2
     exit 1
 fi

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "a1a-r3-gate-spec-v2",
+  "revisionDate": "2026-07-29",
+  "status": "planned_blocked_on_br1p",
+  "authority": "A1A_REPAIR_PLAN_2026-07-23.zh.md + ROADMAP_AMENDMENT_PROPOSAL.zh.md + USER__APPROVE_R2R_BR1P_PREREQUISITE_CORRIDOR__2026-07-29T15:29:33+08:00",
+  "stageSequence": [
+    "A1a-R2R",
+    "L1-F",
+    "SOC1-aF",
+    "PF1-aF",
+    "A1b-B0",
+    "BR1-P",
+    "A1a-R3Q",
+    "A1a-R3C"
+  ],
+  "referenceIdentity": {
+    "r0Candidate": "artifacts/candidates/accepted/a1a-r0-baseline-diagnostics-20260723",
+    "currentFailedR3Input": "artifacts/candidates/accepted/a1a-r2-single-position-board-20260724-perf",
+    "r3SemanticReference": "the future frozen completed_verified BR1-P candidate",
+    "terrainSeed": 20260629
+  },
+  "r3EntryGate": {
+    "requiredState": "completed_verified",
+    "requiredCandidatePrefix": "a1a-r2r-br1p-predator-recruitment-",
+    "requiredSuites": [
+      "R1 position-kernel fixtures",
+      "R2 position-board fixtures",
+      "default unit/system/integration suite",
+      "water safety and thirst on/off",
+      "100/300-step attribution",
+      "five-seed 1000-step development matrix",
+      "encounter-geometry matrix",
+      "ecology-random draw-shape ledger"
+      ,
+      "L1-F spatial-fact fixtures and exact D2 opportunity projection",
+      "SOC1-aF registry-generic capacity-profile fact fixtures",
+      "PF1-aF exact predator-resource, legacy-assessment, and realized-kill joins",
+      "A1b-B0 disconnected birth-resource conservation fixtures",
+      "BR1-P predator reproduction acceptance and lifecycle fixtures"
+    ]
+  },
+  "r3SemanticEquivalence": {
+    "reference": "frozen completed_verified BR1-P JAR, source manifest, and signed reproduction policy",
+    "exactAcrossDevelopmentMatrix": [
+      "per-step ecology fingerprint",
+      "per-step position-plan digest",
+      "event-ledger digest",
+      "transition-ledger digest",
+      "ecology-random draw count by named phase",
+      "reproductive-state digest",
+      "realized-kill, reproductive-credit, and birth-resource ledger"
+    ],
+    "allowedDifferences": [
+      "elapsed time",
+      "peak heap",
+      "allocation count",
+      "observation transport and drop counters"
+    ],
+    "failureAction": "reclassify as semantic work and return to the frozen BR1-P reference and its prerequisite attribution"
+  },
+  "developmentMatrix": {
+    "ecologySeeds": [
+      1111,
+      2111,
+      3111,
+      4111,
+      5111
+    ],
+    "terrainSeed": 20260629,
+    "steps": 1000,
+    "checkpointInterval": 100
+  },
+  "holdout": {
+    "runOnlyAfterSourceFreeze": true,
+    "bankIndex": 1,
+    "ecologySeeds": [
+      6111,
+      7111,
+      8111,
+      9111,
+      10111
+    ],
+    "terrainSeed": 20260629,
+    "steps": 1000,
+    "checkpointInterval": 100,
+    "nextBankRule": "For bank b >= 1 and j = 1..5, seed = (5*b + j)*1000 + 111. A failed bank becomes development evidence and the next candidate uses the next unused bank.",
+    "failureAction": "archive the frozen candidate as failed; do not tune or patch it in place"
+  },
+  "performanceGates": {
+    "warmupSteps": 1000,
+    "independentMeasuredRuns": 3,
+    "measuredSteps": 1000,
+    "elapsedMedianMaxRatioVsSameDayR0": 1.25,
+    "peakHeapMaxRatioVsSameDayR0": 1.25,
+    "candidateVisitsMustNotExceedDeclaredBudget": true,
+    "unboundedHistoryOrIdentityCachesAllowed": false,
+    "observationOnOffEcologyFingerprintMustMatch": true
+  },
+  "ecologyGates": {
+    "canonicalSteps": [
+      1000,
+      3000,
+      5000
+    ],
+    "allRegisteredSpeciesMustRemainAlive": true,
+    "canonicalBalanceRatioMax": 12.0,
+    "perSeedBalanceRatioMaxRule": "max(12.0, R0 same-seed balance ratio * 1.5)",
+    "fiveSeedMedianFinalCountRatioVsR0": {
+      "min": 0.7,
+      "max": 1.3
+    },
+    "singleSeedFinalCountRatioVsR0": {
+      "min": 0.5,
+      "max": 2.0
+    },
+    "appliesToDevelopmentAndHoldoutMatrices": true
+  },
+  "encounterGeometryGates": {
+    "appliesTo": "every registered predator species; no species-name special case",
+    "checkpointSteps": [
+      300,
+      400,
+      500,
+      600,
+      700,
+      800,
+      900,
+      1000
+    ],
+    "meaningfulState": {
+      "predatorPopulationMin": 20,
+      "globalEdiblePreyPopulationMin": 100,
+      "r0ReachablePreyCoverageMustBePositive": true
+    },
+    "maxConsecutiveZeroReachablePreyCoverageCheckpoints": 1,
+    "fiveSeedMedianOfPerSeedCheckpointMedianReachablePreyCoverageRatioMinVsR0": 0.5,
+    "fiveSeedMedianSuccessfulHuntsPerAdultPredatorStepRatioMinVsR0": 0.5,
+    "birthAndDeathDifferencesMustReconcileToSpeciesFinalCounts": true
+  },
+  "artifactGates": {
+    "productionJarBoundary": true,
+    "recursiveOrphanAudit": true,
+    "sourceArchiveRoundTrip": true,
+    "runtimeIdentity": true,
+    "candidateAndRoundTripCoreClassManifestMustMatch": true,
+    "requiredEvidence": [
+      "R3_GATE_SPEC.json",
+      "BR1P_REFERENCE_IDENTITY.txt",
+      "PREREQUISITE_CORRIDOR_EVIDENCE.txt",
+      "REPRODUCTIVE_STATE_AND_RESOURCE_LEDGER.txt",
+      "POSITION_PLAN_EQUIVALENCE.txt",
+      "RNG_DRAW_LEDGER_DIFF.txt",
+      "ENCOUNTER_GEOMETRY_MATRIX.txt",
+      "ECOLOGY_MATRIX_DEVELOPMENT.txt",
+      "ECOLOGY_MATRIX_HOLDOUT.txt",
+      "PERFORMANCE_AND_HEAP.txt",
+      "ARTIFACT_IDENTITY.txt"
+    ]
+  },
+  "forbidden": [
+    "ecology parameter or species-profile changes",
+    "balance or population threshold relaxation",
+    "species-name or seed-specific production branches",
+    "restoring the R0 mixed old-field/new-animal-location behavior",
+    "shadow or projected Field ownership",
+    "a second production position resolver",
+    "changing priority, candidate order, fallback, salt, or random draw shape inside R3",
+    "reusing a failed candidate ID or holdout bank"
+  ]
+}

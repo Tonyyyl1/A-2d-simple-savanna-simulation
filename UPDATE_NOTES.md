@@ -1,5 +1,72 @@
 # Update Notes
 
+## v1.8 O0b3 heatmap windows and species
+
+- The heatmap now defaults to LAST_1000 and All species, with exact LAST_100,
+  LAST_1000, Whole-run, actor-species and event-type selection facts frozen in
+  the render frame.
+- The UI discloses the active range, totals, maximum, marker visibility by
+  species, priority overlays, and density-aware sampling. It still does not
+  infer successful SEEK_WATER from ordinary MOVE; that remains W2 work.
+
+## v1.8 O0b2 frozen heatmap snapshots
+
+- Heatmap data is now frozen together with a visible frame at reset, each
+  100-step boundary, run final, and explicit PNG capture. Ordinary per-step
+  frames deliberately carry no heatmap snapshot.
+- Swing repaint and fixed PNG rendering share one pure snapshot renderer; they
+  cannot observe events written after the frame was published. O0b2 keeps the
+  existing Whole-run / All-species semantics and leaves all window/species
+  selection work for O0b3.
+
+## v1.8 O0b1 frame-event facts
+
+- Visible frames now carry immutable producer-defined event intervals rather
+  than a mislabeled copy of the recent-event window. Counts remain exact by
+  event type and actor species even when display samples are capped.
+- `recentEvents` is now an O(1) bounded FIFO diagnostic buffer. Its 600-event
+  limit cannot affect frame statistics, listener reconciliation, or future
+  heatmap correctness.
+- This stop point deliberately adds no heatmap, time-window, or species-filter
+  UI and makes no ecological behavior change. O0b2 requires a new confirmation.
+
+## v1.8 O0a water/movement baseline
+
+- O0a adds observation-only transition outcomes after movement/spawn reservation;
+  it does not alter animal decisions, event semantics, terrain, or random use.
+- Water behaviour reports now distinguish action labels from physical outcomes,
+  give stable inferred pool IDs, and preserve `AMBIGUOUS` rather than inventing
+  a target when two pools tie.
+- The frozen calibration matrix establishes the baseline for W1/W2: identity
+  conservation is clean, while non-REST rest credit and non-improving SEEK
+  choices are recorded as existing defects rather than changed in this batch.
+
+## v1.8 R0 runtime identity batch
+
+- Every published `RenderFrame` now carries one immutable provenance object for
+  build ID, full source hash, CodeSource, ecology random seed, terrain layout
+  seed, terrain generator version, and logical terrain fingerprint.
+- HUD/fixed PNG, console, and HTML report identity fields come from that same
+  object; the startup labels now distinguish ecology and terrain seeds and
+  describe the 100-step refresh delay honestly.
+- Root-level legacy `.class` files are archived with SHA evidence. Canonical
+  candidate builds use a clean classes directory, a normalized source manifest,
+  matching source zip/core hashes, orphan audit, guarded launcher, and atomic
+  `CURRENT_DEV` promotion.
+- R0 stops here; O0 behavior/observability work has not started.
+
+## v1.7 shared render-frame batch
+
+- Live ordinary, inspect, and fixed PNG paths now consume one immutable
+  `RenderFrame` current-animal manifest.
+- `OverviewRenderer` and `InspectRenderer` remain separate renderers with
+  independent visual responsibilities.
+- `HistoricalEventOverlay` keeps replay-only events out of current actors.
+- `EventMetadataRegistry` centralizes bilingual names, colors, icons, and scene
+  categories for every `SimulationEvent.EventType`.
+- `RenderSnapshotTool` writes deterministic fixed-size PNGs without Swing.
+- Shared-render shoreline pixels and renderer performance have dedicated gates.
+
 ## v1.6 work started
 
 - `ThirstBehaviorProbe.java` is now the repeatable thirst observability probe;

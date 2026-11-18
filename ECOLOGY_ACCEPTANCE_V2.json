@@ -1,0 +1,126 @@
+{
+  "schema": "savanna-ecology-acceptance-v2",
+  "state": "frozen-before-v25-ecology-candidate",
+  "sourcePlan": {
+    "file": "DEVELOPMENT_PLAN_V2_5_2026-08-17.zh.md",
+    "sha256": "3e56babe1c175a576c260c2a69ae50123aa6cd6cb789679a76114889c03d3ba3"
+  },
+  "candidateClasses": {
+    "ACCEPTED_BASELINE": {
+      "purpose": "read-only reference only",
+      "mayUpdateCurrentDev": false,
+      "mayRelease": false
+    },
+    "TRANSITIONAL_CANDIDATE": {
+      "purpose": "feature-off closed-loop assembly",
+      "mayUpdateCurrentDev": false,
+      "mayRelease": false
+    },
+    "INFRASTRUCTURE_CANDIDATE": {
+      "purpose": "identity, UI, or boundary work with unchanged ecology",
+      "mayUpdateCurrentDev": false,
+      "mayRelease": false
+    },
+    "ECOLOGY_CANDIDATE": {
+      "purpose": "complete ecology semantics candidate",
+      "mayUpdateCurrentDev": true,
+      "mayRelease": false
+    },
+    "RELEASE_CANDIDATE": {
+      "purpose": "ecology, UI, identity, and seal complete",
+      "mayUpdateCurrentDev": true,
+      "mayRelease": true
+    }
+  },
+  "seedGroups": {
+    "featureOffEquivalence": {
+      "terrainSeed": 20260629,
+      "runs": [
+        { "ecologySeed": 2111, "steps": 100 },
+        { "ecologySeed": 1111, "steps": 1000 },
+        { "ecologySeed": 2111, "steps": 1000 }
+      ],
+      "required": [
+        "per-step ecology fingerprints exact",
+        "next RNG state exact"
+      ]
+    },
+    "development": {
+      "terrainSeed": 20260629,
+      "ecologySeeds": [1111, 2111],
+      "steps": 1000
+    },
+    "validation": {
+      "terrainSeed": 20260629,
+      "ecologySeeds": [3111, 4111, 5111],
+      "steps": 1000
+    },
+    "holdout": {
+      "terrainSeed": 20260629,
+      "ecologySeeds": [6111, 7111, 8111, 9111, 10111],
+      "access": "forbidden before separately authorized frozen qualification"
+    }
+  },
+  "hardGates": {
+    "defaultRegression": "PASS",
+    "fullRegression": "PASS",
+    "officialLongRun": {
+      "ecologySeed": 1111,
+      "terrainSeed": 20260629,
+      "steps": 5000,
+      "allSpeciesSurvive": true,
+      "finalBalance": { "operator": "<=", "limit": 12.0 }
+    },
+    "seedRule": "every frozen development and validation seed must satisfy its declared gate; no median, mean, percentile, or species-conditioned substitution is accepted",
+    "requiredContracts": [
+      "population continuity",
+      "birth/death and resource conservation",
+      "predator reach/attempt/kill/accepted-energy/replacement closed loop",
+      "UI render/detail frame identity",
+      "runtime/source/config/candidate identity",
+      "candidate seal and independent verification"
+    ]
+  },
+  "diagnostics": [
+    "final/minimum/maximum population and balance trajectory",
+    "birth/death/immigration/emigration turnover",
+    "age and sex structure",
+    "food/stamina/hydration distributions",
+    "hunt reach/attempt/success/kill/accepted energy",
+    "maternal debit and newborn reserve residual",
+    "grass growth/maturation/consumption/end residual",
+    "local capacity and residence/egress duration",
+    "water queue/wait/throughput/completion/departure",
+    "runtime identity and deterministic replay hash"
+  ],
+  "expectedRed": {
+    "ACCEPTED_BASELINE": {
+      "id": "ECO-LONG-01",
+      "fullRegression": "926/927 FAIL",
+      "finalBalance": "32.07 > 12.0",
+      "disposition": "inherited hard red; never report as PASS"
+    },
+    "INFRASTRUCTURE_CANDIDATE": {
+      "disposition": "may retain the inherited ECO-LONG-01 expected red; it is not ecology qualified"
+    }
+  },
+  "qualificationOrder": [
+    "source/runtime/config/candidate identity",
+    "default regression",
+    "full regression",
+    "conservation/property gates",
+    "frozen development/validation matrix",
+    "official seed-1111 5000-step gate",
+    "UI frame/detail identity",
+    "candidate seal",
+    "separately authorized holdout/R3",
+    "separately authorized release"
+  ],
+  "prohibited": [
+    "gate relaxation",
+    "global subsidy",
+    "species, seed, coordinate, or checkpoint special cases",
+    "skipping the full suite",
+    "reusing a failed candidate ID, hash, or parameter set"
+  ]
+}
